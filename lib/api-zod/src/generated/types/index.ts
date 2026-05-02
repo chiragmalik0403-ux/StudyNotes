@@ -6,4 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./createNoteBody";
+export * from "./createNoteBodyType";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./listNotesParams";
+export * from "./note";
+export * from "./noteType";
+export * from "./updateNoteBody";
+export * from "./updateNoteBodyType";
+export * from "./updateUserRoleBody";
+export * from "./updateUserRoleBodyRole";
+export * from "./userProfile";
+export * from "./userProfileRole";

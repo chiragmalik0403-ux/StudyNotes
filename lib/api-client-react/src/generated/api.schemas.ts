@@ -8,3 +8,99 @@
 export interface HealthStatus {
   status: string;
 }
+
+export type NoteType = (typeof NoteType)[keyof typeof NoteType];
+
+export const NoteType = {
+  text: "text",
+  jsx: "jsx",
+} as const;
+
+export interface Note {
+  id: number;
+  type: NoteType;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  pinned: boolean;
+  /** @nullable */
+  createdByClerkId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateNoteBodyType =
+  (typeof CreateNoteBodyType)[keyof typeof CreateNoteBodyType];
+
+export const CreateNoteBodyType = {
+  text: "text",
+  jsx: "jsx",
+} as const;
+
+export interface CreateNoteBody {
+  type: CreateNoteBodyType;
+  title: string;
+  content: string;
+  category: string;
+  tags?: string[];
+  pinned?: boolean;
+}
+
+export type UpdateNoteBodyType =
+  (typeof UpdateNoteBodyType)[keyof typeof UpdateNoteBodyType];
+
+export const UpdateNoteBodyType = {
+  text: "text",
+  jsx: "jsx",
+} as const;
+
+export interface UpdateNoteBody {
+  type?: UpdateNoteBodyType;
+  title?: string;
+  content?: string;
+  category?: string;
+  tags?: string[];
+  pinned?: boolean;
+}
+
+export type UserProfileRole =
+  (typeof UserProfileRole)[keyof typeof UserProfileRole];
+
+export const UserProfileRole = {
+  admin: "admin",
+  contributor: "contributor",
+  public: "public",
+} as const;
+
+export interface UserProfile {
+  clerkUserId: string;
+  email: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  role: UserProfileRole;
+}
+
+export type UpdateUserRoleBodyRole =
+  (typeof UpdateUserRoleBodyRole)[keyof typeof UpdateUserRoleBodyRole];
+
+export const UpdateUserRoleBodyRole = {
+  admin: "admin",
+  contributor: "contributor",
+  public: "public",
+} as const;
+
+export interface UpdateUserRoleBody {
+  role: UpdateUserRoleBodyRole;
+}
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export type ListNotesParams = {
+  category?: string;
+  search?: string;
+};

@@ -8,9 +8,160 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
+});
+
+/**
+ * @summary List all notes (public)
+ */
+export const ListNotesQueryParams = zod.object({
+  category: zod.coerce.string().optional(),
+  search: zod.coerce.string().optional(),
+});
+
+export const ListNotesResponseItem = zod.object({
+  id: zod.number(),
+  type: zod.enum(["text", "jsx"]),
+  title: zod.string(),
+  content: zod.string(),
+  category: zod.string(),
+  tags: zod.array(zod.string()),
+  pinned: zod.boolean(),
+  createdByClerkId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListNotesResponse = zod.array(ListNotesResponseItem);
+
+/**
+ * @summary Create a note (contributor or admin)
+ */
+export const CreateNoteBody = zod.object({
+  type: zod.enum(["text", "jsx"]),
+  title: zod.string(),
+  content: zod.string(),
+  category: zod.string(),
+  tags: zod.array(zod.string()).optional(),
+  pinned: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get a note by id (public)
+ */
+export const GetNoteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetNoteResponse = zod.object({
+  id: zod.number(),
+  type: zod.enum(["text", "jsx"]),
+  title: zod.string(),
+  content: zod.string(),
+  category: zod.string(),
+  tags: zod.array(zod.string()),
+  pinned: zod.boolean(),
+  createdByClerkId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update a note (owner contributor or admin)
+ */
+export const UpdateNoteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateNoteBody = zod.object({
+  type: zod.enum(["text", "jsx"]).optional(),
+  title: zod.string().optional(),
+  content: zod.string().optional(),
+  category: zod.string().optional(),
+  tags: zod.array(zod.string()).optional(),
+  pinned: zod.boolean().optional(),
+});
+
+export const UpdateNoteResponse = zod.object({
+  id: zod.number(),
+  type: zod.enum(["text", "jsx"]),
+  title: zod.string(),
+  content: zod.string(),
+  category: zod.string(),
+  tags: zod.array(zod.string()),
+  pinned: zod.boolean(),
+  createdByClerkId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a note (owner contributor or admin)
+ */
+export const DeleteNoteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Toggle note pin status (admin only)
+ */
+export const ToggleNotePinParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ToggleNotePinResponse = zod.object({
+  id: zod.number(),
+  type: zod.enum(["text", "jsx"]),
+  title: zod.string(),
+  content: zod.string(),
+  category: zod.string(),
+  tags: zod.array(zod.string()),
+  pinned: zod.boolean(),
+  createdByClerkId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get current user info and role
+ */
+export const GetMeResponse = zod.object({
+  clerkUserId: zod.string(),
+  email: zod.string(),
+  name: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  role: zod.enum(["admin", "contributor", "public"]),
+});
+
+/**
+ * @summary List all users with roles (admin only)
+ */
+export const ListUsersResponseItem = zod.object({
+  clerkUserId: zod.string(),
+  email: zod.string(),
+  name: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  role: zod.enum(["admin", "contributor", "public"]),
+});
+export const ListUsersResponse = zod.array(ListUsersResponseItem);
+
+/**
+ * @summary Update a user's role (admin only)
+ */
+export const UpdateUserRoleParams = zod.object({
+  clerkUserId: zod.coerce.string(),
+});
+
+export const UpdateUserRoleBody = zod.object({
+  role: zod.enum(["admin", "contributor", "public"]),
+});
+
+export const UpdateUserRoleResponse = zod.object({
+  clerkUserId: zod.string(),
+  email: zod.string(),
+  name: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  role: zod.enum(["admin", "contributor", "public"]),
 });

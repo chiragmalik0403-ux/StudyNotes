@@ -3,18 +3,47 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
+import { useUser, SignInButton, UserButton } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListNotes,
+  getListNotesQueryKey,
+  getGetMeQueryKey,
+  useCreateNote,
+  useUpdateNote,
+  useDeleteNote,
+  useToggleNotePin,
+  useGetMe,
+  useListUsers,
+  getListUsersQueryKey,
+  useUpdateUserRole,
+} from "@workspace/api-client-react";
 
 interface Note {
-  id: string;
+  id: number;
   type: "text" | "jsx";
   title: string;
   content: string;
   category: string;
   tags: string[];
   pinned: boolean;
-  createdAt: number;
-  updatedAt: number;
+  createdByClerkId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type UserRole = "admin" | "contributor" | "public";
+
+interface NoteDraft {
+  id?: number;
+  type: "text" | "jsx";
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  pinned: boolean;
 }
 
 interface Settings {
@@ -23,7 +52,7 @@ interface Settings {
 
 interface EditModalData {
   isNew: boolean;
-  note: Note;
+  note: NoteDraft;
 }
 
 const APP_KEY = "study_notes_v2";
@@ -189,51 +218,10 @@ return (
 );
 }`;
 
-const DEMO_NOTES: Note[] = [
-  {
-    id: "demo_jsx_1",
-    type: "jsx",
-    title: "Common Lung Disorders — Interactive Guide",
-    content: DEMO_JSX_SOURCE,
-    category: "Rog Nidan",
-    tags: ["lung", "copd", "pneumonia", "interactive"],
-    pinned: true,
-    createdAt: Date.now() - 86400000 * 3,
-    updatedAt: Date.now() - 86400000 * 1,
-  },
-  {
-    id: "demo_text_1",
-    type: "text",
-    title: "Introduction to Dravyaguna",
-    content:
-      "Dravyaguna Vigyan is the Ayurvedic pharmacology that deals with properties (Guna), actions (Karma), and therapeutic uses (Upayoga) of drugs.\n\nKey concepts:\n• Dravya – Substance\n• Guna – Property\n• Karma – Action\n• Vipaka – Post-digestive taste\n• Prabhava – Special potency\n\nThe five Mahabhuta theory forms the basis of understanding drug properties.",
-    category: "Dravyaguna",
-    tags: ["pharmacology", "basics", "mahabhuta"],
-    pinned: false,
-    createdAt: Date.now() - 86400000 * 5,
-    updatedAt: Date.now() - 86400000 * 2,
-  },
-  {
-    id: "demo_text_2",
-    type: "text",
-    title: "Dinacharya – Daily Routine",
-    content:
-      "Dinacharya is the Ayurvedic daily regimen described in Swasthavritta.\n\nMorning routine:\n• Brahma muhurta waking (1.5 hrs before sunrise)\n• Dantadhavana (teeth cleaning)\n• Jihva nirlekhana (tongue scraping)\n• Abhyanga (oil massage)\n• Vyayama (exercise – 50% capacity)\n• Snana (bathing)",
-    category: "Swasthavritta",
-    tags: ["daily-routine", "dinacharya", "prevention"],
-    pinned: false,
-    createdAt: Date.now() - 86400000 * 7,
-    updatedAt: Date.now() - 86400000 * 4,
-  },
-];
-
-const uid = (): string =>
-  `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
 const wordCount = (text: string): number =>
   text.trim().split(/\s+/).filter(Boolean).length;
 
-const fmtDate = (ts: number): string => {
+const fmtDate = (ts: string | number): string => {
   if (!ts) return "";
   return new Date(ts).toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -244,28 +232,11 @@ const fmtDate = (ts: number): string => {
   });
 };
 
-const loadNotes = (): Note[] => {
-  try {
-    const raw = localStorage.getItem(APP_KEY);
-    return raw ? (JSON.parse(raw) as Note[]) : DEMO_NOTES;
-  } catch (_e) {
-    return DEMO_NOTES;
-  }
-};
-
-const saveNotes = (notes: Note[]): void => {
-  try {
-    localStorage.setItem(APP_KEY, JSON.stringify(notes));
-  } catch (_e) {
-    console.error("localStorage error", _e);
-  }
-};
-
 const loadSettings = (): Settings => {
   try {
     const raw = localStorage.getItem(`${APP_KEY}_settings`);
     return raw ? (JSON.parse(raw) as Settings) : { dark: false };
-  } catch (_e) {
+  } catch {
     return { dark: false };
   }
 };
@@ -273,14 +244,13 @@ const loadSettings = (): Settings => {
 const saveSettings = (s: Settings): void => {
   try {
     localStorage.setItem(`${APP_KEY}_settings`, JSON.stringify(s));
-  } catch (_e) {
+  } catch {
     // ignore
   }
 };
 
 const buildIframeHTML = (jsxSource: string): string => {
   const safeSource = JSON.stringify(jsxSource);
-
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -293,39 +263,31 @@ const buildIframeHTML = (jsxSource: string): string => {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <script>
-    window.__JSX_SOURCE__ = ${safeSource};
-  </script>
+  <script>window.__JSX_SOURCE__ = ${safeSource};</script>
   <script>
     (function() {
       var src = window.__JSX_SOURCE__;
       src = src.replace(/^import\\s+.*?from\\s+['"][^'"]+['"];?\\s*$/gm, "").trim();
-
       var match =
         src.match(/export\\s+default\\s+function\\s+(\\w+)/) ||
         src.match(/export\\s+default\\s+class\\s+(\\w+)/) ||
         src.match(/export\\s+default\\s+(\\w+)\\s*;?\\s*$/m);
       var componentName = match ? match[1] : null;
-
       src = src
         .replace(/export\\s+default\\s+function\\s+/, "function ")
         .replace(/export\\s+default\\s+class\\s+/, "class ")
         .replace(/export\\s+default\\s+(\\w+)\\s*;?\\s*$/, "");
-
       var mountCall = componentName
         ? "ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(" + componentName + "));"
         : "document.getElementById('root').innerHTML = '<p style=\\"color:red;padding:20px\\">Could not detect default export.</p>';";
-
       var preamble = "const { useState, useEffect, useRef, useCallback, useMemo, useReducer } = React;";
       var fullCode = preamble + "\\n" + src + "\\n" + mountCall;
-
       try {
         var transpiled = Babel.transform(fullCode, { presets: ["react"] }).code;
         new Function(transpiled)();
       } catch(err) {
         document.getElementById("root").innerHTML =
-          '<pre style="color:red;padding:16px;font-size:12px;white-space:pre-wrap">' +
-          String(err) + "</pre>";
+          '<pre style="color:red;padding:16px;font-size:12px;white-space:pre-wrap">' + String(err) + "</pre>";
       }
     })();
   </script>
@@ -524,6 +486,25 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .type-option.selected-text .to-label { color: var(--accent); }
 .type-option.selected-jsx  .to-label { color: var(--jsx-badge); }
 
+.sign-in-prompt { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--accentBg); border: 1px solid var(--accent); border-radius: 10px; font-size: 12px; color: var(--accent); }
+.sign-in-prompt button { background: var(--accent); color: #fff; border: none; border-radius: 7px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); }
+.sign-in-prompt button:hover { background: var(--accent2); }
+
+.role-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; border-radius: 99px; padding: 2px 8px; flex-shrink: 0; }
+.role-badge.admin { background: #dc2626; color: #fff; }
+.role-badge.contributor { background: var(--accent); color: #fff; }
+.role-badge.public { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th { text-align: left; padding: 8px 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); border-bottom: 2px solid var(--border); }
+.admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.admin-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface2); }
+.admin-user { display: flex; align-items: center; gap: 8px; }
+.admin-user-name { font-weight: 500; font-size: 12.5px; }
+.admin-user-email { font-size: 11px; color: var(--text3); }
+
+.readonly-banner { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; background: var(--accentBg); border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--text2); flex-shrink: 0; }
+
 @media (max-width: 768px) {
   .sidebar { position: fixed; top: 0; left: 0; height: 100%; transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow); }
@@ -542,9 +523,29 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 `;
 
 export default function App(): React.ReactElement {
-  const [notes, setNotes] = useState<Note[]>(() => loadNotes());
-  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const queryClient = useQueryClient();
 
+  const { data: me } = useGetMe({
+    query: {
+      queryKey: getGetMeQueryKey(),
+      enabled: clerkLoaded && !!isSignedIn,
+      retry: false,
+    },
+  });
+
+  const role: UserRole = (me?.role as UserRole) ?? "public";
+  const canCreate = role === "admin" || role === "contributor";
+  const isAdmin = role === "admin";
+
+  const { data: apiNotes = [], isLoading: notesLoading } = useListNotes();
+
+  const createNoteMutation = useCreateNote();
+  const updateNoteMutation = useUpdateNote();
+  const deleteNoteMutation = useDeleteNote();
+  const togglePinMutation = useToggleNotePin();
+
+  const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [activeCategory, setActiveCategory] = useState<string>("All Notes");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("newest");
@@ -553,11 +554,11 @@ export default function App(): React.ReactElement {
 
   const [editModal, setEditModal] = useState<EditModalData | null>(null);
   const [viewModal, setViewModal] = useState<Note | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => saveNotes(notes), [notes]);
   useEffect(() => saveSettings(settings), [settings]);
 
   const allCategories: string[] = [
@@ -565,18 +566,18 @@ export default function App(): React.ReactElement {
     ...Array.from(
       new Set([
         ...DEFAULT_CATEGORIES.filter((c) => c !== "All Notes"),
-        ...notes.map((n) => n.category).filter((c): c is string => !!c),
+        ...apiNotes.map((n) => n.category).filter((c): c is string => !!c),
       ])
     ),
   ];
 
   const catCount = (c: string): number =>
     c === "All Notes"
-      ? notes.length
-      : notes.filter((n) => n.category === c).length;
+      ? apiNotes.length
+      : apiNotes.filter((n) => n.category === c).length;
 
-  const visible: Note[] = (() => {
-    let list = [...notes];
+  const visible: Note[] = useMemo(() => {
+    let list = [...apiNotes] as Note[];
     if (activeCategory !== "All Notes")
       list = list.filter((n) => n.category === activeCategory);
     if (searchQuery.trim()) {
@@ -592,14 +593,16 @@ export default function App(): React.ReactElement {
     list.sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
-      if (sortBy === "newest") return b.updatedAt - a.updatedAt;
-      if (sortBy === "oldest") return a.updatedAt - b.updatedAt;
+      if (sortBy === "newest")
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      if (sortBy === "oldest")
+        return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
       if (sortBy === "alpha") return a.title.localeCompare(b.title);
       if (sortBy === "category") return a.category.localeCompare(b.category);
       return 0;
     });
     return list;
-  })();
+  }, [apiNotes, activeCategory, searchQuery, sortBy]);
 
   const showToast = useCallback((msg: string): void => {
     setToast(msg);
@@ -608,24 +611,11 @@ export default function App(): React.ReactElement {
 
   const toggleDark = (): void => setSettings((s) => ({ ...s, dark: !s.dark }));
 
-  const togglePin = useCallback(
-    (
-      id: string,
-      e: React.MouseEvent | { stopPropagation: () => void }
-    ): void => {
-      e.stopPropagation();
-      setNotes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n))
-      );
-    },
-    []
-  );
-
-  const openNew = (): void =>
+  const openNew = (): void => {
+    if (!canCreate) return;
     setEditModal({
       isNew: true,
       note: {
-        id: uid(),
         type: "text",
         title: "",
         content: "",
@@ -633,38 +623,95 @@ export default function App(): React.ReactElement {
           activeCategory === "All Notes" ? "Uncategorized" : activeCategory,
         tags: [],
         pinned: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
       },
     });
+  };
 
   const openEdit = (note: Note, e?: React.MouseEvent): void => {
     e?.stopPropagation();
-    setEditModal({ isNew: false, note: { ...note } });
+    setEditModal({
+      isNew: false,
+      note: {
+        id: note.id,
+        type: note.type,
+        title: note.title,
+        content: note.content,
+        category: note.category,
+        tags: note.tags,
+        pinned: note.pinned,
+      },
+    });
   };
 
-  const saveNote = (note: Note): void => {
+  const saveNote = async (draft: NoteDraft): Promise<void> => {
     if (!editModal) return;
-    const updated: Note = { ...note, updatedAt: Date.now() };
-    if (editModal.isNew) {
-      setNotes((prev) => [updated, ...prev]);
-      showToast("Note created");
-    } else {
-      setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
-      showToast("Note saved");
+    try {
+      if (editModal.isNew) {
+        await createNoteMutation.mutateAsync({
+          data: {
+            type: draft.type,
+            title: draft.title,
+            content: draft.content,
+            category: draft.category,
+            tags: draft.tags,
+            pinned: draft.pinned,
+          },
+        });
+        showToast("Note created");
+      } else {
+        await updateNoteMutation.mutateAsync({
+          id: draft.id!,
+          data: {
+            type: draft.type,
+            title: draft.title,
+            content: draft.content,
+            category: draft.category,
+            tags: draft.tags,
+            pinned: draft.pinned,
+          },
+        });
+        showToast("Note saved");
+      }
+      queryClient.invalidateQueries({ queryKey: getListNotesQueryKey() });
+      setEditModal(null);
+    } catch {
+      showToast("Failed to save note");
     }
-    setEditModal(null);
   };
 
-  const deleteNote = (): void => {
-    setNotes((prev) => prev.filter((n) => n.id !== deleteTarget));
-    if (viewModal?.id === deleteTarget) setViewModal(null);
-    setDeleteTarget(null);
-    showToast("Note deleted");
+  const handleDeleteNote = async (): Promise<void> => {
+    if (deleteTarget === null) return;
+    try {
+      await deleteNoteMutation.mutateAsync({ id: deleteTarget });
+      if (viewModal?.id === deleteTarget) setViewModal(null);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: getListNotesQueryKey() });
+      showToast("Note deleted");
+    } catch {
+      showToast("Failed to delete note");
+    }
   };
+
+  const handleTogglePin = useCallback(
+    async (
+      id: number,
+      e: React.MouseEvent | { stopPropagation: () => void }
+    ): Promise<void> => {
+      e.stopPropagation();
+      if (!isAdmin) return;
+      try {
+        await togglePinMutation.mutateAsync({ id });
+        queryClient.invalidateQueries({ queryKey: getListNotesQueryKey() });
+        setViewModal((n) => (n?.id === id ? { ...n, pinned: !n.pinned } : n));
+      } catch {
+        showToast("Failed to pin note");
+      }
+    },
+    [isAdmin, togglePinMutation, queryClient, showToast]
+  );
 
   const exportJSON = (): void => {
-    const blob = new Blob([JSON.stringify(notes, null, 2)], {
+    const blob = new Blob([JSON.stringify(apiNotes, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -678,7 +725,7 @@ export default function App(): React.ReactElement {
   };
 
   const exportTXT = (): void => {
-    const text = notes
+    const text = apiNotes
       .map(
         (n) =>
           `=== ${n.title} ===\nType: ${n.type}\nCategory: ${n.category}\nTags: ${n.tags.join(", ")}\nEdited: ${fmtDate(n.updatedAt)}\n\n${n.content}`
@@ -696,20 +743,33 @@ export default function App(): React.ReactElement {
   };
 
   const importJSON = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (!canCreate) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev: ProgressEvent<FileReader>) => {
+    reader.onload = async (ev: ProgressEvent<FileReader>) => {
       try {
         const raw = ev.target?.result as string;
-        const imported = JSON.parse(raw) as Note[];
+        const imported = JSON.parse(raw) as Partial<Note>[];
         if (!Array.isArray(imported)) throw new Error("Not an array");
-        setNotes((prev) => {
-          const ids = new Set(prev.map((n) => n.id));
-          return [...imported.filter((n) => !ids.has(n.id)), ...prev];
-        });
-        showToast(`Imported ${imported.length} note(s)`);
-      } catch (_e) {
+        let count = 0;
+        for (const n of imported) {
+          if (!n.title || !n.content) continue;
+          await createNoteMutation.mutateAsync({
+            data: {
+              type: n.type ?? "text",
+              title: n.title,
+              content: n.content,
+              category: n.category ?? "Uncategorized",
+              tags: n.tags ?? [],
+              pinned: n.pinned ?? false,
+            },
+          });
+          count++;
+        }
+        queryClient.invalidateQueries({ queryKey: getListNotesQueryKey() });
+        showToast(`Imported ${count} note(s)`);
+      } catch {
         showToast("Invalid JSON file");
       }
     };
@@ -733,8 +793,9 @@ export default function App(): React.ReactElement {
           <div className="sidebar-logo">
             <h1>StudyNotes</h1>
             <p>
-              {notes.length} notes ·{" "}
-              {notes.filter((n) => n.type === "jsx").length} interactive
+              {notesLoading
+                ? "Loading…"
+                : `${apiNotes.length} notes · ${apiNotes.filter((n) => n.type === "jsx").length} interactive`}
             </p>
           </div>
 
@@ -760,19 +821,32 @@ export default function App(): React.ReactElement {
             <button className="btn btn-ghost btn-sm btn-full" onClick={exportTXT}>
               Export TXT
             </button>
-            <button
-              className="btn btn-ghost btn-sm btn-full"
-              onClick={() => fileRef.current?.click()}
-            >
-              Import JSON
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json"
-              style={{ display: "none" }}
-              onChange={importJSON}
-            />
+            {canCreate && (
+              <>
+                <button
+                  className="btn btn-ghost btn-sm btn-full"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Import JSON
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={importJSON}
+                />
+              </>
+            )}
+            {isAdmin && (
+              <button
+                className="btn btn-ghost btn-sm btn-full"
+                style={{ borderColor: "#dc2626", color: "#dc2626" }}
+                onClick={() => setShowAdminPanel(true)}
+              >
+                ⚙ Admin Panel
+              </button>
+            )}
           </div>
         </aside>
 
@@ -803,10 +877,54 @@ export default function App(): React.ReactElement {
             >
               {settings.dark ? "☀️" : "🌙"}
             </button>
-            <button className="btn btn-primary desktop-add" onClick={openNew}>
-              + New Note
-            </button>
+
+            {clerkLoaded && !isSignedIn && (
+              <SignInButton mode="modal">
+                <button className="btn btn-ghost btn-sm">Sign in</button>
+              </SignInButton>
+            )}
+
+            {clerkLoaded && isSignedIn && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {me?.role && (
+                  <span className={`role-badge ${me.role}`}>{me.role}</span>
+                )}
+                <UserButton />
+              </div>
+            )}
+
+            {canCreate && (
+              <button
+                className="btn btn-primary desktop-add"
+                onClick={openNew}
+              >
+                + New Note
+              </button>
+            )}
           </div>
+
+          {clerkLoaded && !isSignedIn && (
+            <div className="readonly-banner">
+              <span>📖 You are viewing in read-only mode.</span>
+              <SignInButton mode="modal">
+                <button
+                  style={{
+                    background: "var(--accent)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 7,
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "var(--font)",
+                  }}
+                >
+                  Sign in to contribute
+                </button>
+              </SignInButton>
+            </div>
+          )}
 
           <div className="sort-bar">
             <span style={{ fontSize: 11.5, color: "var(--text3)" }}>Sort:</span>
@@ -822,20 +940,28 @@ export default function App(): React.ReactElement {
               <option value="category">By category</option>
             </select>
             <span className="count-label">
-              {visible.length} note{visible.length !== 1 ? "s" : ""} ·{" "}
-              {visible.filter((n) => n.type === "jsx").length} interactive
+              {notesLoading
+                ? "Loading…"
+                : `${visible.length} note${visible.length !== 1 ? "s" : ""} · ${visible.filter((n) => n.type === "jsx").length} interactive`}
             </span>
           </div>
 
           <div className="notes-grid">
-            {visible.length === 0 ? (
+            {notesLoading ? (
+              <div className="empty-state">
+                <div className="spinner" style={{ margin: "0 auto 12px" }} />
+                <p>Loading notes…</p>
+              </div>
+            ) : visible.length === 0 ? (
               <div className="empty-state">
                 <div className="ei">📚</div>
                 <h3>{searchQuery ? "No matching notes" : "No notes yet"}</h3>
                 <p>
                   {searchQuery
                     ? "Try a different term."
-                    : 'Tap "+ New Note" to get started.'}
+                    : canCreate
+                    ? 'Tap "+ New Note" to get started.'
+                    : "Sign in to contribute notes."}
                 </p>
               </div>
             ) : (
@@ -843,13 +969,15 @@ export default function App(): React.ReactElement {
                 <NoteCard
                   key={note.id}
                   note={note}
+                  role={role}
+                  currentUserId={user?.id}
                   onOpen={() => setViewModal(note)}
                   onEdit={(e) => openEdit(note, e)}
                   onDelete={(e) => {
                     e.stopPropagation();
                     setDeleteTarget(note.id);
                   }}
-                  onPin={(e) => togglePin(note.id, e)}
+                  onPin={(e) => handleTogglePin(note.id, e)}
                 />
               ))
             )}
@@ -857,9 +985,11 @@ export default function App(): React.ReactElement {
         </main>
       </div>
 
-      <button className="fab" onClick={openNew} aria-label="New note">
-        +
-      </button>
+      {canCreate && (
+        <button className="fab" onClick={openNew} aria-label="New note">
+          +
+        </button>
+      )}
 
       {editModal && (
         <EditModal
@@ -867,12 +997,17 @@ export default function App(): React.ReactElement {
           categories={allCategories.filter((c) => c !== "All Notes")}
           onSave={saveNote}
           onClose={() => setEditModal(null)}
+          isSaving={
+            createNoteMutation.isPending || updateNoteMutation.isPending
+          }
         />
       )}
 
       {viewModal && (
         <ViewModal
           note={viewModal}
+          role={role}
+          currentUserId={user?.id}
           onClose={() => setViewModal(null)}
           onEdit={() => {
             openEdit(viewModal);
@@ -882,18 +1017,23 @@ export default function App(): React.ReactElement {
             setDeleteTarget(viewModal.id);
             setViewModal(null);
           }}
-          onPin={() => {
-            togglePin(viewModal.id, { stopPropagation: () => {} });
-            setViewModal((n) => (n ? { ...n, pinned: !n.pinned } : null));
-          }}
+          onPin={() => handleTogglePin(viewModal.id, { stopPropagation: () => {} })}
           showToast={showToast}
         />
       )}
 
-      {deleteTarget && (
+      {deleteTarget !== null && (
         <ConfirmModal
-          onConfirm={deleteNote}
+          onConfirm={handleDeleteNote}
           onCancel={() => setDeleteTarget(null)}
+          isDeleting={deleteNoteMutation.isPending}
+        />
+      )}
+
+      {showAdminPanel && isAdmin && (
+        <AdminPanel
+          onClose={() => setShowAdminPanel(false)}
+          showToast={showToast}
         />
       )}
 
@@ -904,15 +1044,29 @@ export default function App(): React.ReactElement {
 
 interface NoteCardProps {
   note: Note;
+  role: UserRole;
+  currentUserId?: string;
   onOpen: () => void;
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
   onPin: (e: React.MouseEvent) => void;
 }
 
-function NoteCard({ note, onOpen, onEdit, onDelete, onPin }: NoteCardProps): React.ReactElement {
+function NoteCard({
+  note,
+  role,
+  currentUserId,
+  onOpen,
+  onEdit,
+  onDelete,
+  onPin,
+}: NoteCardProps): React.ReactElement {
   const isJSX = note.type === "jsx";
   const thumbHTML = isJSX ? buildIframeHTML(note.content) : null;
+  const isOwner = currentUserId && note.createdByClerkId === currentUserId;
+  const canEdit = role === "admin" || (role === "contributor" && !!isOwner);
+  const canDelete = role === "admin" || (role === "contributor" && !!isOwner);
+  const canPin = role === "admin";
 
   return (
     <article
@@ -946,7 +1100,10 @@ function NoteCard({ note, onOpen, onEdit, onDelete, onPin }: NoteCardProps): Rea
       </div>
 
       {isJSX ? (
-        <p className="card-preview" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
+        <p
+          className="card-preview"
+          style={{ fontFamily: "var(--mono)", fontSize: 11 }}
+        >
           {note.content.slice(0, 120).replace(/\n/g, " ")}…
         </p>
       ) : (
@@ -956,7 +1113,9 @@ function NoteCard({ note, onOpen, onEdit, onDelete, onPin }: NoteCardProps): Rea
       {note.tags.length > 0 && (
         <div className="card-tags">
           {note.tags.slice(0, 4).map((t) => (
-            <span key={t} className="tag">#{t}</span>
+            <span key={t} className="tag">
+              #{t}
+            </span>
           ))}
           {note.tags.length > 4 && (
             <span className="tag">+{note.tags.length - 4}</span>
@@ -970,19 +1129,29 @@ function NoteCard({ note, onOpen, onEdit, onDelete, onPin }: NoteCardProps): Rea
           className="card-actions"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
-          <button
-            className={`btn-icon ${note.pinned ? "pinned" : ""}`}
-            onClick={onPin}
-            title="Pin"
-          >
-            📌
-          </button>
-          <button className="btn-icon" onClick={onEdit} title="Edit">
-            ✏️
-          </button>
-          <button className="btn-icon danger" onClick={onDelete} title="Delete">
-            🗑️
-          </button>
+          {canPin && (
+            <button
+              className={`btn-icon ${note.pinned ? "pinned" : ""}`}
+              onClick={onPin}
+              title="Pin"
+            >
+              📌
+            </button>
+          )}
+          {canEdit && (
+            <button className="btn-icon" onClick={onEdit} title="Edit">
+              ✏️
+            </button>
+          )}
+          {canDelete && (
+            <button
+              className="btn-icon danger"
+              onClick={onDelete}
+              title="Delete"
+            >
+              🗑️
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -991,6 +1160,8 @@ function NoteCard({ note, onOpen, onEdit, onDelete, onPin }: NoteCardProps): Rea
 
 interface ViewModalProps {
   note: Note;
+  role: UserRole;
+  currentUserId?: string;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -998,12 +1169,25 @@ interface ViewModalProps {
   showToast: (msg: string) => void;
 }
 
-function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewModalProps): React.ReactElement {
+function ViewModal({
+  note,
+  role,
+  currentUserId,
+  onClose,
+  onEdit,
+  onDelete,
+  onPin,
+  showToast,
+}: ViewModalProps): React.ReactElement {
   const isJSX = note.type === "jsx";
   const [tab, setTab] = useState<string>(isJSX ? "preview" : "read");
   const [loading, setLoading] = useState<boolean>(true);
 
   const iframeHTML = isJSX ? buildIframeHTML(note.content) : null;
+  const isOwner = currentUserId && note.createdByClerkId === currentUserId;
+  const canEdit = role === "admin" || (role === "contributor" && !!isOwner);
+  const canDelete = role === "admin" || (role === "contributor" && !!isOwner);
+  const canPin = role === "admin";
 
   const openFullView = (): void => {
     if (!iframeHTML) return;
@@ -1021,7 +1205,7 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
     try {
       await navigator.clipboard.writeText(note.content);
       showToast("JSX source copied");
-    } catch (_e) {
+    } catch {
       showToast("Copy failed — try manually selecting the source");
     }
   };
@@ -1047,7 +1231,9 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
       >
         <div className="modal-header">
           <h2 style={{ paddingRight: 10 }}>{note.title || "Untitled"}</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         <div className="modal-tabs">
@@ -1088,10 +1274,26 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
           {isJSX && tab === "preview" && (
             <div className="preview-frame">
               <div className="preview-toolbar">
-                <div className="preview-toolbar-dot" style={{ background: "#ff5f57" }} />
-                <div className="preview-toolbar-dot" style={{ background: "#febc2e" }} />
-                <div className="preview-toolbar-dot" style={{ background: "#28c840" }} />
-                <span style={{ marginLeft: 6, fontSize: 11, color: "var(--text3)", fontFamily: "var(--mono)" }}>
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#ff5f57" }}
+                />
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#febc2e" }}
+                />
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#28c840" }}
+                />
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 11,
+                    color: "var(--text3)",
+                    fontFamily: "var(--mono)",
+                  }}
+                >
                   Live Preview — {note.title}
                 </span>
                 <button
@@ -1121,9 +1323,23 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
 
           {isJSX && tab === "source" && (
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11.5, color: "var(--text3)", fontFamily: "var(--mono)" }}>
-                  {note.content.split("\n").length} lines · {note.content.length} chars
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--text3)",
+                    fontFamily: "var(--mono)",
+                  }}
+                >
+                  {note.content.split("\n").length} lines · {note.content.length}{" "}
+                  chars
                 </span>
                 <button className="btn btn-ghost btn-sm" onClick={copySource}>
                   📋 Copy JSX
@@ -1160,7 +1376,9 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
               {note.tags.length > 0 && (
                 <div className="card-tags" style={{ marginBottom: 14 }}>
                   {note.tags.map((t) => (
-                    <span key={t} className="tag">#{t}</span>
+                    <span key={t} className="tag">
+                      #{t}
+                    </span>
                   ))}
                 </div>
               )}
@@ -1184,7 +1402,9 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
                   }}
                 >
                   <span style={{ color: "var(--text2)" }}>{label}</span>
-                  <span style={{ fontWeight: 600, color: "var(--text)" }}>{val}</span>
+                  <span style={{ fontWeight: 600, color: "var(--text)" }}>
+                    {val}
+                  </span>
                 </div>
               ))}
             </div>
@@ -1192,15 +1412,26 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-ghost btn-sm" onClick={onPin}>
-            📌 {note.pinned ? "Unpin" : "Pin"}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={onEdit}>
-            ✏️ Edit
-          </button>
-          <button className="btn btn-danger btn-sm" onClick={onDelete}>
-            🗑️ Delete
-          </button>
+          {canPin && (
+            <button className="btn btn-ghost btn-sm" onClick={onPin}>
+              📌 {note.pinned ? "Unpin" : "Pin"}
+            </button>
+          )}
+          {canEdit && (
+            <button className="btn btn-ghost btn-sm" onClick={onEdit}>
+              ✏️ Edit
+            </button>
+          )}
+          {canDelete && (
+            <button className="btn btn-danger btn-sm" onClick={onDelete}>
+              🗑️ Delete
+            </button>
+          )}
+          {!canEdit && !canDelete && (
+            <span style={{ fontSize: 12, color: "var(--text3)" }}>
+              Read-only
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1210,12 +1441,19 @@ function ViewModal({ note, onClose, onEdit, onDelete, onPin, showToast }: ViewMo
 interface EditModalProps {
   data: EditModalData;
   categories: string[];
-  onSave: (note: Note) => void;
+  onSave: (note: NoteDraft) => void;
   onClose: () => void;
+  isSaving: boolean;
 }
 
-function EditModal({ data, categories, onSave, onClose }: EditModalProps): React.ReactElement {
-  const [note, setNote] = useState<Note>(data.note);
+function EditModal({
+  data,
+  categories,
+  onSave,
+  onClose,
+  isSaving,
+}: EditModalProps): React.ReactElement {
+  const [note, setNote] = useState<NoteDraft>(data.note);
   const [tagInput, setTagInput] = useState<string>("");
   const [editorTab, setEditorTab] = useState<string>("editor");
   const [previewLoading, setPreviewLoading] = useState<boolean>(true);
@@ -1223,7 +1461,7 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const set = <K extends keyof Note>(field: K, val: Note[K]): void =>
+  const set = <K extends keyof NoteDraft>(field: K, val: NoteDraft[K]): void =>
     setNote((n) => ({ ...n, [field]: val }));
 
   const handleContentChange = (val: string): void => {
@@ -1239,8 +1477,8 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
 
   const addTag = (): void => {
     const t = tagInput.trim().toLowerCase().replace(/\s+/g, "-");
-    if (t && !(note.tags ?? []).includes(t)) {
-      set("tags", [...(note.tags ?? []), t]);
+    if (t && !note.tags.includes(t)) {
+      set("tags", [...note.tags, t]);
     }
     setTagInput("");
   };
@@ -1260,7 +1498,9 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
       >
         <div className="modal-header">
           <h2>{data.isNew ? "New Note" : "Edit Note"}</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         {isJSX && (
@@ -1333,7 +1573,9 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
                   }
                 >
                   {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1428,7 +1670,10 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
                   }
                   style={{ accentColor: "var(--pin)", width: 15, height: 15 }}
                 />
-                <label htmlFor="pin-toggle" style={{ fontSize: 13, cursor: "pointer" }}>
+                <label
+                  htmlFor="pin-toggle"
+                  style={{ fontSize: 13, cursor: "pointer" }}
+                >
                   📌 Pin this note
                 </label>
               </div>
@@ -1438,10 +1683,21 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
           {isJSX && editorTab === "preview" && (
             <div className="preview-frame">
               <div className="preview-toolbar">
-                <div className="preview-toolbar-dot" style={{ background: "#ff5f57" }} />
-                <div className="preview-toolbar-dot" style={{ background: "#febc2e" }} />
-                <div className="preview-toolbar-dot" style={{ background: "#28c840" }} />
-                <span style={{ marginLeft: 6, fontSize: 11, color: "var(--text3)" }}>
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#ff5f57" }}
+                />
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#febc2e" }}
+                />
+                <div
+                  className="preview-toolbar-dot"
+                  style={{ background: "#28c840" }}
+                />
+                <span
+                  style={{ marginLeft: 6, fontSize: 11, color: "var(--text3)" }}
+                >
                   Live Preview
                 </span>
               </div>
@@ -1465,15 +1721,19 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </button>
           <button
             className="btn btn-primary"
             onClick={() => onSave(note)}
-            disabled={!note.title.trim() && !note.content.trim()}
+            disabled={isSaving || (!note.title.trim() && !note.content.trim())}
           >
-            {data.isNew ? "Create Note" : "Save Changes"}
+            {isSaving
+              ? "Saving…"
+              : data.isNew
+              ? "Create Note"
+              : "Save Changes"}
           </button>
         </div>
       </div>
@@ -1484,9 +1744,14 @@ function EditModal({ data, categories, onSave, onClose }: EditModalProps): React
 interface ConfirmModalProps {
   onConfirm: () => void;
   onCancel: () => void;
+  isDeleting: boolean;
 }
 
-function ConfirmModal({ onConfirm, onCancel }: ConfirmModalProps): React.ReactElement {
+function ConfirmModal({
+  onConfirm,
+  onCancel,
+  isDeleting,
+}: ConfirmModalProps): React.ReactElement {
   return (
     <div className="overlay" onClick={onCancel}>
       <div
@@ -1499,11 +1764,153 @@ function ConfirmModal({ onConfirm, onCancel }: ConfirmModalProps): React.ReactEl
           <p>This action cannot be undone.</p>
         </div>
         <div className="modal-footer" style={{ justifyContent: "center" }}>
-          <button className="btn btn-ghost" onClick={onCancel}>
+          <button
+            className="btn btn-ghost"
+            onClick={onCancel}
+            disabled={isDeleting}
+          >
             Cancel
           </button>
-          <button className="btn btn-danger" onClick={onConfirm}>
-            Delete
+          <button
+            className="btn btn-danger"
+            onClick={onConfirm}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AdminPanelProps {
+  onClose: () => void;
+  showToast: (msg: string) => void;
+}
+
+function AdminPanel({ onClose, showToast }: AdminPanelProps): React.ReactElement {
+  const queryClient = useQueryClient();
+  const { data: users = [], isLoading } = useListUsers();
+  const updateRole = useUpdateUserRole();
+
+  const handleRoleChange = async (
+    clerkUserId: string,
+    newRole: "admin" | "contributor" | "public"
+  ): Promise<void> => {
+    try {
+      await updateRole.mutateAsync({
+        clerkUserId,
+        data: { role: newRole },
+      });
+      queryClient.invalidateQueries({ queryKey: ["listUsers"] });
+      showToast("Role updated");
+    } catch {
+      showToast("Failed to update role");
+    }
+  };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div
+        className="modal"
+        style={{ maxWidth: 700 }}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2>⚙ Admin Panel — Users</h2>
+          <button className="btn-icon" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {isLoading ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: 40,
+              }}
+            >
+              <div className="spinner" />
+            </div>
+          ) : users.length === 0 ? (
+            <p
+              style={{
+                textAlign: "center",
+                color: "var(--text3)",
+                padding: 40,
+                fontSize: 13,
+              }}
+            >
+              No users have signed in yet.
+            </p>
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(users as Array<{
+                  clerkUserId: string;
+                  name?: string | null;
+                  email: string;
+                  imageUrl?: string | null;
+                  role: "admin" | "contributor" | "public";
+                }>).map((u) => (
+                  <tr key={u.clerkUserId}>
+                    <td>
+                      <div className="admin-user">
+                        {u.imageUrl ? (
+                          <img
+                            src={u.imageUrl}
+                            alt=""
+                            className="admin-avatar"
+                          />
+                        ) : (
+                          <div className="admin-avatar" />
+                        )}
+                        <span className="admin-user-name">
+                          {u.name || "—"}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="admin-user-email">{u.email}</span>
+                    </td>
+                    <td>
+                      <select
+                        className="form-select"
+                        style={{ padding: "4px 8px", fontSize: 12 }}
+                        value={u.role}
+                        onChange={(e) =>
+                          handleRoleChange(
+                            u.clerkUserId,
+                            e.target.value as "admin" | "contributor" | "public"
+                          )
+                        }
+                        disabled={updateRole.isPending}
+                      >
+                        <option value="public">public</option>
+                        <option value="contributor">contributor</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>
