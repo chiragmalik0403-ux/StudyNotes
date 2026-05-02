@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "StudyNotes"
+version = "1.0.0"
+id = "artifacts/study-notes"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22273
+
+[services.development]
+run = "pnpm --filter @workspace/study-notes run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/study-notes", "run", "build" ]
+publicDir = "artifacts/study-notes/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22273"
+BASE_PATH = "/"
