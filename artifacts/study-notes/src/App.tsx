@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useUser, SignInButton, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "./lib/supabase";
 import {
   useListNotes,
   getListNotesQueryKey,
@@ -560,6 +561,24 @@ export default function App(): React.ReactElement {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => saveSettings(settings), [settings]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("notes-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notes" },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: getListNotesQueryKey(),
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const allCategories: string[] = [
     "All Notes",

@@ -1,8 +1,6 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { notesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { supabase, mapNote, type DbNote } from "../lib/supabase";
 import { getUserRole } from "./users";
 import { CreateNoteBody, UpdateNoteBody } from "@workspace/api-zod";
 
@@ -15,15 +13,28 @@ router.get("/notes", async (req, res): Promise<void> => {
       search?: string;
     };
 
-    let notes = await db.select().from(notesTable).orderBy(notesTable.createdAt);
+    let query = supabase
+      .from("notes")
+      .select("*")
+      .order("created_at", { ascending: true });
 
     if (category && category !== "All Notes") {
-      notes = notes.filter((n) => n.category === category);
+      query = query.eq("category", category);
     }
+
+    const { data: notes, error } = await query;
+
+    if (error) {
+      req.log.error(error, "Supabase error listing notes");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    let result = (notes as DbNote[]).map(mapNote);
 
     if (search) {
       const q = search.toLowerCase();
-      notes = notes.filter(
+      result = result.filter(
         (n) =>
           n.title.toLowerCase().includes(q) ||
           n.content.toLowerCase().includes(q) ||
@@ -32,13 +43,7 @@ router.get("/notes", async (req, res): Promise<void> => {
       );
     }
 
-    res.json(
-      notes.map((n) => ({
-        ...n,
-        createdAt: n.createdAt.toISOString(),
-        updatedAt: n.updatedAt.toISOString(),
-      }))
-    );
+    res.json(result);
   } catch (err) {
     req.log.error(err, "Failed to list notes");
     res.status(500).json({ error: "Internal server error" });
@@ -53,21 +58,18 @@ router.get("/notes/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [note] = await db
-      .select()
-      .from(notesTable)
-      .where(eq(notesTable.id, id));
+    const { data: note, error } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!note) {
+    if (error || !note) {
       res.status(404).json({ error: "Note not found" });
       return;
     }
 
-    res.json({
-      ...note,
-      createdAt: note.createdAt.toISOString(),
-      updatedAt: note.updatedAt.toISOString(),
-    });
+    res.json(mapNote(note as DbNote));
   } catch (err) {
     req.log.error(err, "Failed to get note");
     res.status(500).json({ error: "Internal server error" });
@@ -96,24 +98,27 @@ router.post("/notes", async (req, res): Promise<void> => {
 
     const { type, title, content, category, tags, pinned } = parsed.data;
 
-    const [note] = await db
-      .insert(notesTable)
-      .values({
+    const { data: note, error } = await supabase
+      .from("notes")
+      .insert({
         type,
         title,
         content,
         category,
         tags: tags ?? [],
         pinned: pinned ?? false,
-        createdByClerkId: auth.userId,
+        created_by_clerk_id: auth.userId,
       })
-      .returning();
+      .select()
+      .single();
 
-    res.status(201).json({
-      ...note,
-      createdAt: note.createdAt.toISOString(),
-      updatedAt: note.updatedAt.toISOString(),
-    });
+    if (error || !note) {
+      req.log.error(error, "Supabase error creating note");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    res.status(201).json(mapNote(note as DbNote));
   } catch (err) {
     req.log.error(err, "Failed to create note");
     res.status(500).json({ error: "Internal server error" });
@@ -134,18 +139,20 @@ router.patch("/notes/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [existing] = await db
-      .select()
-      .from(notesTable)
-      .where(eq(notesTable.id, id));
+    const { data: existing, error: fetchErr } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!existing) {
+    if (fetchErr || !existing) {
       res.status(404).json({ error: "Note not found" });
       return;
     }
 
+    const existingNote = existing as DbNote;
     const role = await getUserRole(auth.userId);
-    const isOwner = existing.createdByClerkId === auth.userId;
+    const isOwner = existingNote.created_by_clerk_id === auth.userId;
 
     if (role !== "admin" && !(role === "contributor" && isOwner)) {
       res.status(403).json({ error: "Insufficient permissions" });
@@ -158,17 +165,30 @@ router.patch("/notes/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [updated] = await db
-      .update(notesTable)
-      .set({ ...parsed.data, updatedAt: new Date() })
-      .where(eq(notesTable.id, id))
-      .returning();
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (parsed.data.type !== undefined) updateData.type = parsed.data.type;
+    if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+    if (parsed.data.content !== undefined) updateData.content = parsed.data.content;
+    if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
+    if (parsed.data.tags !== undefined) updateData.tags = parsed.data.tags;
+    if (parsed.data.pinned !== undefined) updateData.pinned = parsed.data.pinned;
 
-    res.json({
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    });
+    const { data: updated, error: updateErr } = await supabase
+      .from("notes")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr || !updated) {
+      req.log.error(updateErr, "Supabase error updating note");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    res.json(mapNote(updated as DbNote));
   } catch (err) {
     req.log.error(err, "Failed to update note");
     res.status(500).json({ error: "Internal server error" });
@@ -189,25 +209,37 @@ router.delete("/notes/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [existing] = await db
-      .select()
-      .from(notesTable)
-      .where(eq(notesTable.id, id));
+    const { data: existing, error: fetchErr } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!existing) {
+    if (fetchErr || !existing) {
       res.status(404).json({ error: "Note not found" });
       return;
     }
 
+    const existingNote = existing as DbNote;
     const role = await getUserRole(auth.userId);
-    const isOwner = existing.createdByClerkId === auth.userId;
+    const isOwner = existingNote.created_by_clerk_id === auth.userId;
 
     if (role !== "admin" && !(role === "contributor" && isOwner)) {
       res.status(403).json({ error: "Insufficient permissions" });
       return;
     }
 
-    await db.delete(notesTable).where(eq(notesTable.id, id));
+    const { error: deleteErr } = await supabase
+      .from("notes")
+      .delete()
+      .eq("id", id);
+
+    if (deleteErr) {
+      req.log.error(deleteErr, "Supabase error deleting note");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
     res.status(204).send();
   } catch (err) {
     req.log.error(err, "Failed to delete note");
@@ -235,27 +267,34 @@ router.patch("/notes/:id/pin", async (req, res): Promise<void> => {
       return;
     }
 
-    const [existing] = await db
-      .select()
-      .from(notesTable)
-      .where(eq(notesTable.id, id));
+    const { data: existing, error: fetchErr } = await supabase
+      .from("notes")
+      .select("pinned")
+      .eq("id", id)
+      .single();
 
-    if (!existing) {
+    if (fetchErr || !existing) {
       res.status(404).json({ error: "Note not found" });
       return;
     }
 
-    const [updated] = await db
-      .update(notesTable)
-      .set({ pinned: !existing.pinned, updatedAt: new Date() })
-      .where(eq(notesTable.id, id))
-      .returning();
+    const { data: updated, error: updateErr } = await supabase
+      .from("notes")
+      .update({
+        pinned: !(existing as { pinned: boolean }).pinned,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
 
-    res.json({
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    });
+    if (updateErr || !updated) {
+      req.log.error(updateErr, "Supabase error toggling pin");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    res.json(mapNote(updated as DbNote));
   } catch (err) {
     req.log.error(err, "Failed to toggle pin");
     res.status(500).json({ error: "Internal server error" });

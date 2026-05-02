@@ -12,10 +12,11 @@ pnpm workspace monorepo using TypeScript. Full-stack web app for BAMS (Ayurveda)
 - **TypeScript version**: 5.9
 - **Frontend**: React + Vite (`artifacts/study-notes`, port from `PORT` env)
 - **Backend**: Express 5 (`artifacts/api-server`, port 8080)
-- **Database**: PostgreSQL + Drizzle ORM (`lib/db`)
+- **Database**: Supabase PostgreSQL (`@supabase/supabase-js` with service role key on server, anon key on client)
 - **Auth**: Clerk (`@clerk/express` on server, `@clerk/react` on client)
 - **API contract**: OpenAPI-first with Orval codegen
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
+- **Validation**: Zod (`zod/v4`)
+- **Realtime**: Supabase Realtime — notes auto-refresh on any change across all clients
 - **React Query**: `@tanstack/react-query` for data fetching/caching
 
 ## Architecture

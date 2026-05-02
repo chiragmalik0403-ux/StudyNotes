@@ -1,19 +1,19 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { userRolesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { getAuth, clerkClient } from "@clerk/express";
+import { supabase, type DbUserRole } from "../lib/supabase";
 
 const router = Router();
 
 export async function getUserRole(
   clerkUserId: string
 ): Promise<"admin" | "contributor" | "public"> {
-  const [row] = await db
-    .select()
-    .from(userRolesTable)
-    .where(eq(userRolesTable.clerkUserId, clerkUserId));
-  return (row?.role as "admin" | "contributor" | "public") ?? "public";
+  const { data: row } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("clerk_user_id", clerkUserId)
+    .single();
+
+  return ((row as DbUserRole | null)?.role as "admin" | "contributor" | "public") ?? "public";
 }
 
 router.get("/users/me", async (req, res): Promise<void> => {
@@ -24,17 +24,20 @@ router.get("/users/me", async (req, res): Promise<void> => {
       return;
     }
 
-    await db
-      .insert(userRolesTable)
-      .values({ clerkUserId: auth.userId, role: "public" })
-      .onConflictDoNothing();
+    await supabase
+      .from("user_roles")
+      .upsert(
+        { clerk_user_id: auth.userId, role: "public" },
+        { onConflict: "clerk_user_id", ignoreDuplicates: true }
+      );
 
-    const [row] = await db
-      .select()
-      .from(userRolesTable)
-      .where(eq(userRolesTable.clerkUserId, auth.userId));
+    const { data: row } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("clerk_user_id", auth.userId)
+      .single();
 
-    const role = (row?.role as "admin" | "contributor" | "public") ?? "public";
+    const role = ((row as DbUserRole | null)?.role as "admin" | "contributor" | "public") ?? "public";
 
     const clerkUser = await clerkClient.users.getUser(auth.userId);
 
@@ -65,13 +68,23 @@ router.get("/users", async (req, res): Promise<void> => {
       return;
     }
 
-    const rows = await db.select().from(userRolesTable);
+    const { data: rows, error } = await supabase
+      .from("user_roles")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      req.log.error(error, "Supabase error listing users");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
     const users = await Promise.all(
-      rows.map(async (row) => {
+      (rows as DbUserRole[]).map(async (row) => {
         try {
-          const clerkUser = await clerkClient.users.getUser(row.clerkUserId);
+          const clerkUser = await clerkClient.users.getUser(row.clerk_user_id);
           return {
-            clerkUserId: row.clerkUserId,
+            clerkUserId: row.clerk_user_id,
             email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
             name: clerkUser.fullName ?? null,
             imageUrl: clerkUser.imageUrl ?? null,
@@ -112,13 +125,18 @@ router.patch("/users/:clerkUserId/role", async (req, res): Promise<void> => {
       return;
     }
 
-    await db
-      .insert(userRolesTable)
-      .values({ clerkUserId, role })
-      .onConflictDoUpdate({
-        target: userRolesTable.clerkUserId,
-        set: { role },
-      });
+    const { error } = await supabase
+      .from("user_roles")
+      .upsert(
+        { clerk_user_id: clerkUserId, role },
+        { onConflict: "clerk_user_id" }
+      );
+
+    if (error) {
+      req.log.error(error, "Supabase error updating role");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
 
     const clerkUser = await clerkClient.users.getUser(clerkUserId);
 
