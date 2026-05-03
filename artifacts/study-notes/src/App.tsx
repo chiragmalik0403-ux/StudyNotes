@@ -500,13 +500,43 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .role-badge.editor { background: var(--accent); color: #fff; }
 .role-badge.viewer { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
 
+.admin-stats { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.admin-stat { display: flex; flex-direction: column; align-items: center; padding: 10px 18px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); min-width: 72px; }
+.admin-stat-num { font-size: 22px; font-weight: 700; line-height: 1; }
+.admin-stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text3); margin-top: 3px; }
+.admin-stat.stat-admin .admin-stat-num { color: #dc2626; }
+.admin-stat.stat-editor .admin-stat-num { color: var(--accent); }
+.admin-stat.stat-viewer .admin-stat-num { color: var(--text3); }
+
+.admin-filters { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.admin-search { flex: 1; min-width: 160px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 7px 12px; font-size: 12.5px; color: var(--text); outline: none; font-family: var(--font); }
+.admin-search:focus { border-color: var(--accent); }
+.admin-pill { padding: 5px 12px; border-radius: 99px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border); background: none; color: var(--text2); font-family: var(--font); transition: background 0.12s, color 0.12s, border-color 0.12s; }
+.admin-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.admin-pill:not(.active):hover { border-color: var(--accent); color: var(--accent); }
+
+.admin-user-list { display: flex; flex-direction: column; gap: 8px; }
+.admin-user-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); transition: border-color 0.15s; }
+.admin-user-row:hover { border-color: var(--accent); }
+.admin-user-row.saving { opacity: 0.65; pointer-events: none; }
+.admin-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: var(--surface2); flex-shrink: 0; }
+.admin-user-info { flex: 1; min-width: 0; }
+.admin-user-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-user-email { font-size: 11px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-role-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.admin-role-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; font-family: var(--font); cursor: pointer; }
+.admin-role-select:focus { border-color: var(--accent); }
+.admin-apply-btn { padding: 6px 13px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: var(--accent); color: #fff; font-family: var(--font); transition: background 0.15s, opacity 0.15s; white-space: nowrap; }
+.admin-apply-btn:hover { background: var(--accent2); }
+.admin-apply-btn:disabled { opacity: 0.5; cursor: default; }
+.admin-row-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.7s linear infinite; flex-shrink: 0; }
+.admin-empty { text-align: center; color: var(--text3); padding: 36px 0; font-size: 13px; }
+
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .admin-table th { text-align: left; padding: 8px 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); border-bottom: 2px solid var(--border); }
 .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.admin-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface2); }
 .admin-user { display: flex; align-items: center; gap: 8px; }
-.admin-user-name { font-weight: 500; font-size: 12.5px; }
-.admin-user-email { font-size: 11px; color: var(--text3); }
+.admin-user-email-small { font-size: 11px; color: var(--text3); }
 
 .readonly-banner { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; background: var(--accentBg); border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--text2); flex-shrink: 0; }
 
@@ -1834,122 +1864,222 @@ interface AdminPanelProps {
   showToast: (msg: string) => void;
 }
 
+type AdminUser = {
+  clerkUserId: string;
+  name?: string | null;
+  email: string;
+  imageUrl?: string | null;
+  role: "admin" | "editor" | "viewer";
+};
+
 function AdminPanel({ onClose, showToast }: AdminPanelProps): React.ReactElement {
   const queryClient = useQueryClient();
-  const { data: users = [], isLoading } = useListUsers();
+  const { data: rawUsers = [], isLoading, refetch, isFetching } = useListUsers();
   const updateRole = useUpdateUserRole();
 
-  const handleRoleChange = async (
-    clerkUserId: string,
-    newRole: "admin" | "editor" | "viewer"
-  ): Promise<void> => {
+  const users = rawUsers as AdminUser[];
+
+  const [pendingRoles, setPendingRoles] = useState<Record<string, "admin" | "editor" | "viewer">>({});
+  const [savingUsers, setSavingUsers] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "editor" | "viewer">("all");
+
+  const totalCount = users.length;
+  const adminCount = users.filter((u) => u.role === "admin").length;
+  const editorCount = users.filter((u) => u.role === "editor").length;
+  const viewerCount = users.filter((u) => u.role === "viewer").length;
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      (u.name ?? "").toLowerCase().includes(q) ||
+      (u.email ?? "").toLowerCase().includes(q);
+    const matchRole = roleFilter === "all" || u.role === roleFilter;
+    return matchSearch && matchRole;
+  });
+
+  const getDisplayRole = (u: AdminUser): "admin" | "editor" | "viewer" =>
+    pendingRoles[u.clerkUserId] ?? u.role;
+
+  const hasPending = (u: AdminUser): boolean =>
+    pendingRoles[u.clerkUserId] !== undefined &&
+    pendingRoles[u.clerkUserId] !== u.role;
+
+  const handleApply = async (u: AdminUser): Promise<void> => {
+    const newRole = pendingRoles[u.clerkUserId] ?? u.role;
+    setSavingUsers((prev) => new Set(prev).add(u.clerkUserId));
     try {
-      await updateRole.mutateAsync({
-        clerkUserId,
-        data: { role: newRole },
+      await updateRole.mutateAsync({ clerkUserId: u.clerkUserId, data: { role: newRole } });
+      await queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+      setPendingRoles((prev) => {
+        const next = { ...prev };
+        delete next[u.clerkUserId];
+        return next;
       });
-      queryClient.invalidateQueries({ queryKey: ["listUsers"] });
-      showToast("Role updated");
+      showToast(`Role updated to ${newRole}`);
     } catch {
       showToast("Failed to update role");
+    } finally {
+      setSavingUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(u.clerkUserId);
+        return next;
+      });
     }
   };
+
+  const ROLE_PILLS: Array<{ label: string; value: "all" | "admin" | "editor" | "viewer" }> = [
+    { label: "All", value: "all" },
+    { label: "Admin", value: "admin" },
+    { label: "Editor", value: "editor" },
+    { label: "Viewer", value: "viewer" },
+  ];
 
   return (
     <div className="overlay" onClick={onClose}>
       <div
         className="modal"
-        style={{ maxWidth: 700 }}
+        style={{ maxWidth: 780 }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>⚙ Admin Panel — Users</h2>
-          <button className="btn-icon" onClick={onClose}>
-            ✕
-          </button>
+          <h2>⚙ User Management</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title="Refresh user list"
+            >
+              {isFetching ? "↻ Refreshing…" : "↻ Refresh"}
+            </button>
+            <button className="btn-icon" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <div className="modal-body">
           {isLoading ? (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: 40,
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
               <div className="spinner" />
             </div>
-          ) : users.length === 0 ? (
-            <p
-              style={{
-                textAlign: "center",
-                color: "var(--text3)",
-                padding: 40,
-                fontSize: 13,
-              }}
-            >
-              No users have signed in yet.
-            </p>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(users as Array<{
-                  clerkUserId: string;
-                  name?: string | null;
-                  email: string;
-                  imageUrl?: string | null;
-                  role: "admin" | "editor" | "viewer";
-                }>).map((u) => (
-                  <tr key={u.clerkUserId}>
-                    <td>
-                      <div className="admin-user">
-                        {u.imageUrl ? (
-                          <img
-                            src={u.imageUrl}
-                            alt=""
-                            className="admin-avatar"
-                          />
-                        ) : (
-                          <div className="admin-avatar" />
-                        )}
-                        <span className="admin-user-name">
-                          {u.name || "—"}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="admin-user-email">{u.email}</span>
-                    </td>
-                    <td>
-                      <select
-                        className="form-select"
-                        style={{ padding: "4px 8px", fontSize: 12 }}
-                        value={u.role}
-                        onChange={(e) =>
-                          handleRoleChange(
-                            u.clerkUserId,
-                            e.target.value as "admin" | "editor" | "viewer"
-                          )
-                        }
-                        disabled={updateRole.isPending}
-                      >
-                        <option value="viewer">viewer — read only</option>
-                        <option value="editor">editor — add &amp; edit</option>
-                        <option value="admin">admin — full control</option>
-                      </select>
-                    </td>
-                  </tr>
+            <>
+              <div className="admin-stats">
+                <div className="admin-stat">
+                  <span className="admin-stat-num" style={{ color: "var(--text)" }}>{totalCount}</span>
+                  <span className="admin-stat-label">Total</span>
+                </div>
+                <div className="admin-stat stat-admin">
+                  <span className="admin-stat-num">{adminCount}</span>
+                  <span className="admin-stat-label">Admin</span>
+                </div>
+                <div className="admin-stat stat-editor">
+                  <span className="admin-stat-num">{editorCount}</span>
+                  <span className="admin-stat-label">Editor</span>
+                </div>
+                <div className="admin-stat stat-viewer">
+                  <span className="admin-stat-num">{viewerCount}</span>
+                  <span className="admin-stat-label">Viewer</span>
+                </div>
+              </div>
+
+              <div className="admin-filters">
+                <input
+                  className="admin-search"
+                  type="search"
+                  placeholder="Search by name or email…"
+                  value={search}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                />
+                {ROLE_PILLS.map((p) => (
+                  <button
+                    key={p.value}
+                    className={`admin-pill ${roleFilter === p.value ? "active" : ""}`}
+                    onClick={() => setRoleFilter(p.value)}
+                  >
+                    {p.label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="admin-empty">
+                  {users.length === 0
+                    ? "No users have signed in yet."
+                    : "No users match your search."}
+                </div>
+              ) : (
+                <div className="admin-user-list">
+                  {filtered.map((u) => {
+                    const isSaving = savingUsers.has(u.clerkUserId);
+                    const displayRole = getDisplayRole(u);
+                    const changed = hasPending(u);
+                    return (
+                      <div
+                        key={u.clerkUserId}
+                        className={`admin-user-row ${isSaving ? "saving" : ""}`}
+                      >
+                        {u.imageUrl ? (
+                          <img src={u.imageUrl} alt="" className="admin-avatar" />
+                        ) : (
+                          <div
+                            className="admin-avatar"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 16,
+                              color: "var(--text3)",
+                            }}
+                          >
+                            👤
+                          </div>
+                        )}
+
+                        <div className="admin-user-info">
+                          <div className="admin-user-name">{u.name || "(no name)"}</div>
+                          <div className="admin-user-email">{u.email || "(no email)"}</div>
+                        </div>
+
+                        <span className={`role-badge ${u.role}`}>{u.role}</span>
+
+                        <div className="admin-role-controls">
+                          {isSaving ? (
+                            <div className="admin-row-spinner" />
+                          ) : (
+                            <>
+                              <select
+                                className="admin-role-select"
+                                value={displayRole}
+                                onChange={(e) =>
+                                  setPendingRoles((prev) => ({
+                                    ...prev,
+                                    [u.clerkUserId]: e.target.value as "admin" | "editor" | "viewer",
+                                  }))
+                                }
+                              >
+                                <option value="viewer">viewer</option>
+                                <option value="editor">editor</option>
+                                <option value="admin">admin</option>
+                              </select>
+                              {changed && (
+                                <button
+                                  className="admin-apply-btn"
+                                  onClick={() => handleApply(u)}
+                                >
+                                  Apply
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
