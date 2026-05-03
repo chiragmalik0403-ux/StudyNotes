@@ -24,12 +24,28 @@ router.get("/users/me", async (req, res): Promise<void> => {
       return;
     }
 
+    const clerkUser = await clerkClient.users.getUser(auth.userId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
+    const name = clerkUser.fullName ?? null;
+    const imageUrl = clerkUser.imageUrl ?? null;
+
     await supabase
       .from("user_roles")
       .upsert(
-        { clerk_user_id: auth.userId, role: "viewer" },
-        { onConflict: "clerk_user_id", ignoreDuplicates: true }
+        {
+          clerk_user_id: auth.userId,
+          role: "viewer",
+          email,
+          name,
+          image_url: imageUrl,
+        },
+        { onConflict: "clerk_user_id", ignoreDuplicates: false }
       );
+
+    await supabase
+      .from("user_roles")
+      .update({ email, name, image_url: imageUrl })
+      .eq("clerk_user_id", auth.userId);
 
     const { data: row } = await supabase
       .from("user_roles")
@@ -39,13 +55,11 @@ router.get("/users/me", async (req, res): Promise<void> => {
 
     const role = ((row as DbUserRole | null)?.role as "admin" | "editor" | "viewer") ?? "viewer";
 
-    const clerkUser = await clerkClient.users.getUser(auth.userId);
-
     res.json({
       clerkUserId: auth.userId,
-      email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
-      name: clerkUser.fullName ?? null,
-      imageUrl: clerkUser.imageUrl ?? null,
+      email,
+      name,
+      imageUrl,
       role,
     });
   } catch (err) {
@@ -79,24 +93,15 @@ router.get("/users", async (req, res): Promise<void> => {
       return;
     }
 
-    const users = await Promise.all(
-      (rows as DbUserRole[]).map(async (row) => {
-        try {
-          const clerkUser = await clerkClient.users.getUser(row.clerk_user_id);
-          return {
-            clerkUserId: row.clerk_user_id,
-            email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
-            name: clerkUser.fullName ?? null,
-            imageUrl: clerkUser.imageUrl ?? null,
-            role: row.role as "admin" | "editor" | "viewer",
-          };
-        } catch {
-          return null;
-        }
-      })
-    );
+    const users = (rows as DbUserRole[]).map((row) => ({
+      clerkUserId: row.clerk_user_id,
+      email: row.email ?? "",
+      name: row.name ?? null,
+      imageUrl: row.image_url ?? null,
+      role: row.role as "admin" | "editor" | "viewer",
+    }));
 
-    res.json(users.filter(Boolean));
+    res.json(users);
   } catch (err) {
     req.log.error(err, "Failed to list users");
     res.status(500).json({ error: "Internal server error" });
@@ -125,10 +130,15 @@ router.patch("/users/:clerkUserId/role", async (req, res): Promise<void> => {
       return;
     }
 
+    const clerkUser = await clerkClient.users.getUser(clerkUserId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
+    const name = clerkUser.fullName ?? null;
+    const imageUrl = clerkUser.imageUrl ?? null;
+
     const { error } = await supabase
       .from("user_roles")
       .upsert(
-        { clerk_user_id: clerkUserId, role },
+        { clerk_user_id: clerkUserId, role, email, name, image_url: imageUrl },
         { onConflict: "clerk_user_id" }
       );
 
@@ -138,13 +148,11 @@ router.patch("/users/:clerkUserId/role", async (req, res): Promise<void> => {
       return;
     }
 
-    const clerkUser = await clerkClient.users.getUser(clerkUserId);
-
     res.json({
       clerkUserId,
-      email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
-      name: clerkUser.fullName ?? null,
-      imageUrl: clerkUser.imageUrl ?? null,
+      email,
+      name,
+      imageUrl,
       role,
     });
   } catch (err) {

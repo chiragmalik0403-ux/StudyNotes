@@ -31,6 +31,9 @@ export interface DbUserRole {
   id: number;
   clerk_user_id: string;
   role: string;
+  email: string | null;
+  name: string | null;
+  image_url: string | null;
   created_at: string;
 }
 
