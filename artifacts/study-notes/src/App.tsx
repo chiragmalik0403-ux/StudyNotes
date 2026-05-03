@@ -35,7 +35,7 @@ interface Note {
   updatedAt: string;
 }
 
-type UserRole = "admin" | "contributor" | "public";
+type UserRole = "admin" | "editor" | "viewer";
 
 interface NoteDraft {
   id?: number;
@@ -493,8 +493,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 
 .role-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; border-radius: 99px; padding: 2px 8px; flex-shrink: 0; }
 .role-badge.admin { background: #dc2626; color: #fff; }
-.role-badge.contributor { background: var(--accent); color: #fff; }
-.role-badge.public { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+.role-badge.editor { background: var(--accent); color: #fff; }
+.role-badge.viewer { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
 
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .admin-table th { text-align: left; padding: 8px 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); border-bottom: 2px solid var(--border); }
@@ -535,8 +535,8 @@ export default function App(): React.ReactElement {
     },
   });
 
-  const role: UserRole = (me?.role as UserRole) ?? "public";
-  const canCreate = role === "admin" || role === "contributor";
+  const role: UserRole = (me?.role as UserRole) ?? "viewer";
+  const canCreate = role === "admin" || role === "editor";
   const isAdmin = role === "admin";
 
   const { data: apiNotes = [], isLoading: notesLoading } = useListNotes();
@@ -1083,8 +1083,8 @@ function NoteCard({
   const isJSX = note.type === "jsx";
   const thumbHTML = isJSX ? buildIframeHTML(note.content) : null;
   const isOwner = currentUserId && note.createdByClerkId === currentUserId;
-  const canEdit = role === "admin" || (role === "contributor" && !!isOwner);
-  const canDelete = role === "admin" || (role === "contributor" && !!isOwner);
+  const canEdit = role === "admin" || (role === "editor" && !!isOwner);
+  const canDelete = role === "admin";
   const canPin = role === "admin";
 
   return (
@@ -1204,8 +1204,8 @@ function ViewModal({
 
   const iframeHTML = isJSX ? buildIframeHTML(note.content) : null;
   const isOwner = currentUserId && note.createdByClerkId === currentUserId;
-  const canEdit = role === "admin" || (role === "contributor" && !!isOwner);
-  const canDelete = role === "admin" || (role === "contributor" && !!isOwner);
+  const canEdit = role === "admin" || (role === "editor" && !!isOwner);
+  const canDelete = role === "admin";
   const canPin = role === "admin";
 
   const openFullView = (): void => {
@@ -1815,7 +1815,7 @@ function AdminPanel({ onClose, showToast }: AdminPanelProps): React.ReactElement
 
   const handleRoleChange = async (
     clerkUserId: string,
-    newRole: "admin" | "contributor" | "public"
+    newRole: "admin" | "editor" | "viewer"
   ): Promise<void> => {
     try {
       await updateRole.mutateAsync({
@@ -1880,7 +1880,7 @@ function AdminPanel({ onClose, showToast }: AdminPanelProps): React.ReactElement
                   name?: string | null;
                   email: string;
                   imageUrl?: string | null;
-                  role: "admin" | "contributor" | "public";
+                  role: "admin" | "editor" | "viewer";
                 }>).map((u) => (
                   <tr key={u.clerkUserId}>
                     <td>
@@ -1910,14 +1910,14 @@ function AdminPanel({ onClose, showToast }: AdminPanelProps): React.ReactElement
                         onChange={(e) =>
                           handleRoleChange(
                             u.clerkUserId,
-                            e.target.value as "admin" | "contributor" | "public"
+                            e.target.value as "admin" | "editor" | "viewer"
                           )
                         }
                         disabled={updateRole.isPending}
                       >
-                        <option value="public">public</option>
-                        <option value="contributor">contributor</option>
-                        <option value="admin">admin</option>
+                        <option value="viewer">viewer — read only</option>
+                        <option value="editor">editor — add &amp; edit</option>
+                        <option value="admin">admin — full control</option>
                       </select>
                     </td>
                   </tr>

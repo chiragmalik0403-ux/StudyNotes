@@ -132,7 +132,7 @@ export const GetMeResponse = zod.object({
   email: zod.string(),
   name: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
-  role: zod.enum(["admin", "contributor", "public"]),
+  role: zod.enum(["admin", "editor", "viewer"]),
 });
 
 /**
@@ -143,7 +143,7 @@ export const ListUsersResponseItem = zod.object({
   email: zod.string(),
   name: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
-  role: zod.enum(["admin", "contributor", "public"]),
+  role: zod.enum(["admin", "editor", "viewer"]),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
 
@@ -155,7 +155,7 @@ export const UpdateUserRoleParams = zod.object({
 });
 
 export const UpdateUserRoleBody = zod.object({
-  role: zod.enum(["admin", "contributor", "public"]),
+  role: zod.enum(["admin", "editor", "viewer"]),
 });
 
 export const UpdateUserRoleResponse = zod.object({
@@ -163,5 +163,5 @@ export const UpdateUserRoleResponse = zod.object({
   email: zod.string(),
   name: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
-  role: zod.enum(["admin", "contributor", "public"]),
+  role: zod.enum(["admin", "editor", "viewer"]),
 });

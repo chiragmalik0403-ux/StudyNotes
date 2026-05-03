@@ -6,14 +6,14 @@ const router = Router();
 
 export async function getUserRole(
   clerkUserId: string
-): Promise<"admin" | "contributor" | "public"> {
+): Promise<"admin" | "editor" | "viewer"> {
   const { data: row } = await supabase
     .from("user_roles")
     .select("role")
     .eq("clerk_user_id", clerkUserId)
     .single();
 
-  return ((row as DbUserRole | null)?.role as "admin" | "contributor" | "public") ?? "public";
+  return ((row as DbUserRole | null)?.role as "admin" | "editor" | "viewer") ?? "viewer";
 }
 
 router.get("/users/me", async (req, res): Promise<void> => {
@@ -27,7 +27,7 @@ router.get("/users/me", async (req, res): Promise<void> => {
     await supabase
       .from("user_roles")
       .upsert(
-        { clerk_user_id: auth.userId, role: "public" },
+        { clerk_user_id: auth.userId, role: "viewer" },
         { onConflict: "clerk_user_id", ignoreDuplicates: true }
       );
 
@@ -37,7 +37,7 @@ router.get("/users/me", async (req, res): Promise<void> => {
       .eq("clerk_user_id", auth.userId)
       .single();
 
-    const role = ((row as DbUserRole | null)?.role as "admin" | "contributor" | "public") ?? "public";
+    const role = ((row as DbUserRole | null)?.role as "admin" | "editor" | "viewer") ?? "viewer";
 
     const clerkUser = await clerkClient.users.getUser(auth.userId);
 
@@ -88,7 +88,7 @@ router.get("/users", async (req, res): Promise<void> => {
             email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
             name: clerkUser.fullName ?? null,
             imageUrl: clerkUser.imageUrl ?? null,
-            role: row.role as "admin" | "contributor" | "public",
+            role: row.role as "admin" | "editor" | "viewer",
           };
         } catch {
           return null;
@@ -118,9 +118,9 @@ router.patch("/users/:clerkUserId/role", async (req, res): Promise<void> => {
     }
 
     const { clerkUserId } = req.params;
-    const { role } = req.body as { role: "admin" | "contributor" | "public" };
+    const { role } = req.body as { role: "admin" | "editor" | "viewer" };
 
-    if (!["admin", "contributor", "public"].includes(role)) {
+    if (!["admin", "editor", "viewer"].includes(role)) {
       res.status(400).json({ error: "Invalid role" });
       return;
     }

@@ -69,8 +69,8 @@ export type UserProfileRole =
 
 export const UserProfileRole = {
   admin: "admin",
-  contributor: "contributor",
-  public: "public",
+  editor: "editor",
+  viewer: "viewer",
 } as const;
 
 export interface UserProfile {
@@ -88,8 +88,8 @@ export type UpdateUserRoleBodyRole =
 
 export const UpdateUserRoleBodyRole = {
   admin: "admin",
-  contributor: "contributor",
-  public: "public",
+  editor: "editor",
+  viewer: "viewer",
 } as const;
 
 export interface UpdateUserRoleBody {

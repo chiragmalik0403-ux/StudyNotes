@@ -85,7 +85,7 @@ router.post("/notes", async (req, res): Promise<void> => {
     }
 
     const role = await getUserRole(auth.userId);
-    if (role !== "admin" && role !== "contributor") {
+    if (role !== "admin" && role !== "editor") {
       res.status(403).json({ error: "Insufficient permissions" });
       return;
     }
@@ -154,7 +154,7 @@ router.patch("/notes/:id", async (req, res): Promise<void> => {
     const role = await getUserRole(auth.userId);
     const isOwner = existingNote.created_by_clerk_id === auth.userId;
 
-    if (role !== "admin" && !(role === "contributor" && isOwner)) {
+    if (role !== "admin" && !(role === "editor" && isOwner)) {
       res.status(403).json({ error: "Insufficient permissions" });
       return;
     }
@@ -209,23 +209,20 @@ router.delete("/notes/:id", async (req, res): Promise<void> => {
       return;
     }
 
+    const role = await getUserRole(auth.userId);
+    if (role !== "admin") {
+      res.status(403).json({ error: "Admin only" });
+      return;
+    }
+
     const { data: existing, error: fetchErr } = await supabase
       .from("notes")
-      .select("*")
+      .select("id")
       .eq("id", id)
       .single();
 
     if (fetchErr || !existing) {
       res.status(404).json({ error: "Note not found" });
-      return;
-    }
-
-    const existingNote = existing as DbNote;
-    const role = await getUserRole(auth.userId);
-    const isOwner = existingNote.created_by_clerk_id === auth.userId;
-
-    if (role !== "admin" && !(role === "contributor" && isOwner)) {
-      res.status(403).json({ error: "Insufficient permissions" });
       return;
     }
 
