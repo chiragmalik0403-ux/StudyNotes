@@ -19,8 +19,11 @@ const queryClient = new QueryClient({
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
+// In dev this env var is empty; Replit sets it automatically in production
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
+
 createRoot(document.getElementById("root")!).render(
-  <ClerkProvider publishableKey={publishableKey}>
+  <ClerkProvider publishableKey={publishableKey} proxyUrl={clerkProxyUrl}>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
