@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useUser, SignInButton, UserButton } from "@clerk/react";
+import { useUser, SignIn, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./lib/supabase";
 import {
@@ -423,6 +423,10 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .btn-icon.pinned { color: var(--pin); }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
+.signin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
+.signin-overlay-inner { position: relative; }
+.signin-close { position: absolute; top: -14px; right: -14px; z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--text2); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); transition: background 0.15s, color 0.15s; }
+.signin-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 28px 80px rgba(0,0,0,0.35); width: 100%; max-width: 660px; max-height: 92vh; display: flex; flex-direction: column; animation: slideUp 0.2s ease; }
@@ -553,10 +557,15 @@ export default function App(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [showSignIn, setShowSignIn] = useState<boolean>(false);
   const [editModal, setEditModal] = useState<EditModalData | null>(null);
   const [viewModal, setViewModal] = useState<Note | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isSignedIn) setShowSignIn(false);
+  }, [isSignedIn]);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -898,9 +907,12 @@ export default function App(): React.ReactElement {
             </button>
 
             {clerkLoaded && !isSignedIn && (
-              <SignInButton mode="modal">
-                <button className="btn btn-ghost btn-sm">Sign in</button>
-              </SignInButton>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowSignIn(true)}
+              >
+                Sign in
+              </button>
             )}
 
             {clerkLoaded && isSignedIn && (
@@ -925,23 +937,22 @@ export default function App(): React.ReactElement {
           {clerkLoaded && !isSignedIn && (
             <div className="readonly-banner">
               <span>📖 You are viewing in read-only mode.</span>
-              <SignInButton mode="modal">
-                <button
-                  style={{
-                    background: "var(--accent)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 7,
-                    padding: "4px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontFamily: "var(--font)",
-                  }}
-                >
-                  Sign in to contribute
-                </button>
-              </SignInButton>
+              <button
+                style={{
+                  background: "var(--accent)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 7,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font)",
+                }}
+                onClick={() => setShowSignIn(true)}
+              >
+                Sign in to contribute
+              </button>
             </div>
           )}
 
@@ -1054,6 +1065,21 @@ export default function App(): React.ReactElement {
           onClose={() => setShowAdminPanel(false)}
           showToast={showToast}
         />
+      )}
+
+      {showSignIn && (
+        <div className="signin-overlay">
+          <div className="signin-overlay-inner">
+            <button
+              className="signin-close"
+              onClick={() => setShowSignIn(false)}
+              aria-label="Close sign in"
+            >
+              ×
+            </button>
+            <SignIn routing="hash" />
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}
