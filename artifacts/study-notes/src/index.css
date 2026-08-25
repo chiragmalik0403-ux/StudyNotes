@@ -8,3 +8,12 @@
 html, body, #root {
   height: 100%;
 }
+
+.auth-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #f7f4ee;
+}

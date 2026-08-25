@@ -754,8 +754,8 @@ export default function App(): React.ReactElement {
   }, [isSignedIn]);
 
   const openAuth = (mode: "sign-in" | "sign-up" = "sign-in"): void => {
-    setAuthMode(mode);
-    setShowSignIn(true);
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.assign(`${basePath}/${mode === "sign-up" ? "sign-up" : "sign-in"}`);
   };
 
   useEffect(() => {
