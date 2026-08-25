@@ -330,6 +330,54 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
+.app-shell.home-mode { display: block; overflow: auto; background: #f7f4ee; }
+.app-shell.home-mode .sidebar, .app-shell.home-mode .main-panel { display: none; }
+.home-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #182b28; }
+.home-page::before { content: ""; position: absolute; width: 52vw; height: 52vw; max-width: 720px; max-height: 720px; right: -15vw; top: -22vw; border-radius: 50%; background: #dce8d5; opacity: .75; }
+.home-page::after { content: ""; position: absolute; width: 280px; height: 280px; left: -150px; bottom: 10%; border-radius: 50%; background: #ead7b8; opacity: .55; }
+.home-nav { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; max-width: 1240px; margin: 0 auto; padding: 28px 44px; }
+.home-brand { border: 0; background: transparent; color: #183b36; font-family: var(--serif); font-size: 21px; font-weight: 700; letter-spacing: -.6px; cursor: pointer; }
+.home-brand span { color: #b56b35; }
+.home-nav-actions { display: flex; align-items: center; gap: 12px; }
+.home-nav-link { border: 0; background: transparent; color: #49615b; font: 600 12px var(--font); cursor: pointer; padding: 9px 12px; }
+.home-nav-link:hover { color: #b56b35; }
+.home-nav-cta { border: 1px solid #183b36; border-radius: 99px; padding: 10px 17px; background: #183b36; color: #fff; font: 700 12px var(--font); cursor: pointer; transition: transform .2s, background .2s; }
+.home-nav-cta:hover { transform: translateY(-2px); background: #b56b35; border-color: #b56b35; }
+.home-content { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(320px, .96fr); gap: 60px; align-items: center; max-width: 1240px; min-height: calc(100vh - 89px); margin: 0 auto; padding: 56px 44px 92px; }
+.home-kicker { display: flex; align-items: center; gap: 11px; color: #b56b35; font-size: 11px; font-weight: 800; letter-spacing: 2.3px; text-transform: uppercase; }
+.home-kicker::before { content: ""; width: 38px; height: 1px; background: #b56b35; }
+.home-title { max-width: 680px; margin: 22px 0 20px; color: #183b36; font-family: var(--serif); font-size: clamp(52px, 7vw, 96px); font-weight: 600; line-height: .94; letter-spacing: -4px; }
+.home-title em { color: #b56b35; font-style: normal; }
+.home-subtitle { max-width: 560px; color: #5d716b; font-family: var(--serif); font-size: clamp(18px, 2vw, 23px); font-style: italic; line-height: 1.45; }
+.home-actions { display: flex; align-items: center; gap: 20px; margin-top: 34px; }
+.home-primary { border: 0; border-radius: 99px; padding: 15px 23px; background: #b56b35; color: #fff; font: 800 13px var(--font); cursor: pointer; box-shadow: 0 12px 24px rgba(181,107,53,.22); transition: transform .2s, box-shadow .2s; }
+.home-primary:hover { transform: translateY(-3px); box-shadow: 0 16px 28px rgba(181,107,53,.3); }
+.home-secondary { border: 0; background: transparent; color: #49615b; font: 700 13px var(--font); cursor: pointer; }
+.home-secondary:hover { color: #b56b35; }
+.home-note { margin-top: 30px; color: #83928b; font-size: 11px; letter-spacing: .2px; }
+.home-visual { position: relative; min-height: 440px; }
+.home-orbit { position: absolute; inset: 8% 4% 5% 7%; border: 1px solid rgba(24,59,54,.15); border-radius: 47% 53% 50% 48%; transform: rotate(-13deg); }
+.home-orbit::after { content: ""; position: absolute; inset: 8% -4% 10% 12%; border: 1px solid rgba(181,107,53,.3); border-radius: 54% 46% 45% 55%; transform: rotate(28deg); }
+.home-card { position: absolute; right: 7%; top: 13%; width: min(390px, 82%); padding: 25px; border: 1px solid rgba(255,255,255,.75); border-radius: 22px; background: rgba(255,255,255,.74); box-shadow: 0 26px 70px rgba(24,59,54,.14); backdrop-filter: blur(14px); transform: rotate(4deg); }
+.home-card-top { display: flex; justify-content: space-between; align-items: center; color: #b56b35; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
+.home-card h2 { margin: 34px 0 10px; color: #183b36; font-family: var(--serif); font-size: 30px; line-height: 1; }
+.home-card p { color: #60766e; font-size: 12px; line-height: 1.6; }
+.home-card-rule { height: 1px; margin: 24px 0 18px; background: rgba(24,59,54,.13); }
+.home-card-bottom { display: flex; align-items: center; justify-content: space-between; color: #60766e; font-size: 11px; }
+.home-pill { padding: 7px 10px; border-radius: 99px; background: #e3eddd; color: #37614d; font-weight: 700; }
+.home-badge { position: absolute; left: 1%; bottom: 10%; display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 14px; background: #183b36; color: #fff; box-shadow: 0 18px 35px rgba(24,59,54,.22); transform: rotate(-7deg); }
+.home-badge-mark { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #d7a66c; color: #183b36; font-family: var(--serif); font-size: 17px; font-weight: 700; }
+.home-badge strong { display: block; font-size: 11px; }
+.home-badge span { display: block; margin-top: 2px; color: #b9cbc2; font-size: 10px; }
+@media (max-width: 768px) {
+  .home-nav { padding: 22px 22px; }
+  .home-nav-link { display: none; }
+  .home-content { display: block; min-height: auto; padding: 64px 22px 70px; }
+  .home-title { font-size: clamp(54px, 15vw, 76px); letter-spacing: -3px; }
+  .home-visual { min-height: 380px; margin-top: 24px; }
+  .home-card { right: 3%; width: 86%; }
+  .home-badge { left: 0; bottom: 7%; }
+}
 
 .sidebar {
   width: 224px; flex-shrink: 0; background: var(--surface);
@@ -590,6 +638,7 @@ export default function App(): React.ReactElement {
   const [sortBy, setSortBy] = useState<string>("newest");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [showHome, setShowHome] = useState<boolean>(true);
 
   const [showSignIn, setShowSignIn] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
@@ -863,7 +912,75 @@ export default function App(): React.ReactElement {
     <>
       <style dangerouslySetInnerHTML={{ __html: buildStyles(settings.dark) }} />
 
-      <div className="app-shell">
+      <div className={`app-shell ${showHome ? "home-mode" : ""}`}>
+        {showHome && (
+          <section className="home-page" aria-labelledby="home-title">
+            <nav className="home-nav" aria-label="Main navigation">
+              <button className="home-brand" onClick={() => setShowHome(true)}>
+                Study<span>Notes</span>
+              </button>
+              <div className="home-nav-actions">
+                <button className="home-nav-link" onClick={() => setShowHome(false)}>
+                  Browse notes
+                </button>
+                {!isSignedIn && clerkLoaded && (
+                  <button className="home-nav-cta" onClick={() => openAuth("sign-in")}>
+                    Sign in
+                  </button>
+                )}
+              </div>
+            </nav>
+
+            <div className="home-content">
+              <div className="home-copy">
+                <div className="home-kicker">The BAMS study companion</div>
+                <h1 className="home-title" id="home-title">
+                  Your BAMS Syllabus, <em>Reimagined</em>
+                </h1>
+                <p className="home-subtitle">
+                  interactive, syllabus-aligned learning organized by Prof, designed to make BAMS easier to understand.
+                </p>
+                <div className="home-actions">
+                  <button className="home-primary" onClick={() => setShowHome(false)}>
+                    Explore the notes <span aria-hidden="true">→</span>
+                  </button>
+                  {!isSignedIn && clerkLoaded && (
+                    <button className="home-secondary" onClick={() => openAuth("sign-up")}>
+                      Create your free account
+                    </button>
+                  )}
+                </div>
+                <p className="home-note">Built for curious minds navigating Ayurveda, one concept at a time.</p>
+              </div>
+
+              <div className="home-visual" aria-hidden="true">
+                <div className="home-orbit" />
+                <div className="home-card">
+                  <div className="home-card-top">
+                    <span>II BAMS · Dravyaguna</span>
+                    <span>01 / 06</span>
+                  </div>
+                  <h2>Learn the why behind the what.</h2>
+                  <p>
+                    Structured concepts, memorable explanations, and interactive study guides that turn a long syllabus into a path you can follow.
+                  </p>
+                  <div className="home-card-rule" />
+                  <div className="home-card-bottom">
+                    <span>Today’s focus</span>
+                    <span className="home-pill">Interactive guide</span>
+                  </div>
+                </div>
+                <div className="home-badge">
+                  <div className="home-badge-mark">✦</div>
+                  <div>
+                    <strong>Study with intention</strong>
+                    <span>Clearer notes. Deeper recall.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
         {sidebarOpen && (
           <div
             className="sidebar-backdrop"
