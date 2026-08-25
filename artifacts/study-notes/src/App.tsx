@@ -332,6 +332,32 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
 .app-shell.home-mode { display: block; overflow: auto; background: #f7f4ee; }
 .app-shell.home-mode .sidebar, .app-shell.home-mode .main-panel { display: none; }
+.app-shell.proff-select-mode .sidebar, .app-shell.proff-select-mode .main-panel,
+.app-shell.proff-empty-mode .sidebar, .app-shell.proff-empty-mode .main-panel { display: none; }
+.proff-selection-page, .proff-empty-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #183b36; }
+.proff-selection-page::before, .proff-empty-page::before { content: ""; position: absolute; width: 560px; height: 560px; right: -180px; top: -240px; border-radius: 50%; background: #dce8d5; }
+.proff-selection-inner, .proff-empty-inner { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 60px 44px 80px; }
+.proff-back { border: 0; background: transparent; color: #60766e; font: 700 12px var(--font); cursor: pointer; padding: 8px 0; }
+.proff-back:hover { color: #b56b35; }
+.proff-eyebrow { margin-top: 62px; color: #b56b35; font-size: 11px; font-weight: 800; letter-spacing: 2.2px; text-transform: uppercase; }
+.proff-title { max-width: 650px; margin: 15px 0 13px; color: #183b36; font-family: var(--serif); font-size: clamp(44px, 6vw, 74px); line-height: .98; letter-spacing: -3px; }
+.proff-intro { max-width: 510px; color: #60766e; font-family: var(--serif); font-size: 19px; font-style: italic; line-height: 1.45; }
+.proff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 46px; }
+.proff-card { position: relative; min-height: 210px; padding: 25px; border: 1px solid rgba(24,59,54,.14); border-radius: 18px; background: rgba(255,255,255,.68); color: #183b36; text-align: left; cursor: pointer; box-shadow: 0 12px 32px rgba(24,59,54,.06); transition: transform .2s, box-shadow .2s, border-color .2s; }
+.proff-card:hover { transform: translateY(-6px); border-color: #b56b35; box-shadow: 0 20px 42px rgba(24,59,54,.13); }
+.proff-card.featured { background: #183b36; color: #fff; border-color: #183b36; }
+.proff-card-number { color: #b56b35; font: 800 11px var(--font); letter-spacing: 1.5px; }
+.proff-card h2 { margin: 33px 0 8px; font-family: var(--serif); font-size: 28px; letter-spacing: -.8px; }
+.proff-card p { color: #71837d; font-size: 12px; line-height: 1.5; }
+.proff-card.featured p { color: #c2d2ca; }
+.proff-card-arrow { position: absolute; right: 23px; bottom: 23px; color: #b56b35; font-size: 22px; }
+.proff-empty-inner { max-width: 820px; }
+.proff-empty-card { margin-top: 52px; padding: 46px; border: 1px solid rgba(24,59,54,.14); border-radius: 22px; background: rgba(255,255,255,.72); text-align: center; box-shadow: 0 20px 45px rgba(24,59,54,.08); }
+.proff-empty-card h2 { margin-bottom: 10px; font-family: var(--serif); font-size: 34px; }
+.proff-empty-card p { max-width: 420px; margin: 0 auto; color: #60766e; font-family: var(--serif); font-size: 17px; font-style: italic; line-height: 1.5; }
+.proff-empty-action { margin-top: 26px; border: 0; border-radius: 99px; padding: 13px 20px; background: #b56b35; color: #fff; font: 800 12px var(--font); cursor: pointer; }
+.proff-home-btn { border: 0; background: transparent; color: var(--text3); font: 700 12px var(--font); cursor: pointer; white-space: nowrap; }
+.proff-home-btn:hover { color: var(--accent); }
 .home-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #182b28; }
 .home-page::before { content: ""; position: absolute; width: 52vw; height: 52vw; max-width: 720px; max-height: 720px; right: -15vw; top: -22vw; border-radius: 50%; background: #dce8d5; opacity: .75; }
 .home-page::after { content: ""; position: absolute; width: 280px; height: 280px; left: -150px; bottom: 10%; border-radius: 50%; background: #ead7b8; opacity: .55; }
@@ -639,6 +665,21 @@ export default function App(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const [showHome, setShowHome] = useState<boolean>(true);
+  const [showProffSelection, setShowProffSelection] = useState<boolean>(false);
+  const [selectedProff, setSelectedProff] = useState<"1st proff" | "2nd proff" | "3rd proff" | null>(null);
+
+  const openProffSelection = (): void => {
+    setShowHome(false);
+    setShowProffSelection(true);
+    setSelectedProff(null);
+  };
+
+  const selectProff = (proff: "1st proff" | "2nd proff" | "3rd proff"): void => {
+    setShowProffSelection(false);
+    setSelectedProff(proff);
+    setActiveCategory("All Notes");
+    setSidebarOpen(false);
+  };
 
   const [showSignIn, setShowSignIn] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
@@ -912,7 +953,7 @@ export default function App(): React.ReactElement {
     <>
       <style dangerouslySetInnerHTML={{ __html: buildStyles(settings.dark) }} />
 
-      <div className={`app-shell ${showHome ? "home-mode" : ""}`}>
+      <div className={`app-shell ${showHome ? "home-mode" : showProffSelection ? "proff-select-mode" : selectedProff !== "2nd proff" ? "proff-empty-mode" : ""}`}>
         {showHome && (
           <section className="home-page" aria-labelledby="home-title">
             <nav className="home-nav" aria-label="Main navigation">
@@ -920,7 +961,7 @@ export default function App(): React.ReactElement {
                 Study<span>Notes</span>
               </button>
               <div className="home-nav-actions">
-                <button className="home-nav-link" onClick={() => setShowHome(false)}>
+                  <button className="home-nav-link" onClick={openProffSelection}>
                   Browse notes
                 </button>
                 {!isSignedIn && clerkLoaded && (
@@ -941,7 +982,7 @@ export default function App(): React.ReactElement {
                   interactive, syllabus-aligned learning organized by Prof, designed to make BAMS easier to understand.
                 </p>
                 <div className="home-actions">
-                  <button className="home-primary" onClick={() => setShowHome(false)}>
+                  <button className="home-primary" onClick={openProffSelection}>
                     Explore the notes <span aria-hidden="true">→</span>
                   </button>
                   {!isSignedIn && clerkLoaded && (
@@ -977,6 +1018,39 @@ export default function App(): React.ReactElement {
                     <span>Clearer notes. Deeper recall.</span>
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+        {showProffSelection && (
+          <section className="proff-selection-page" aria-labelledby="proff-title">
+            <div className="proff-selection-inner">
+              <button className="proff-back" onClick={() => setShowHome(true)}>← Back to home</button>
+              <div className="proff-eyebrow">Find your place in the syllabus</div>
+              <h1 className="proff-title" id="proff-title">Choose your proff.</h1>
+              <p className="proff-intro">A calmer way to move through BAMS — start with the year you’re studying today.</p>
+              <div className="proff-grid">
+                {(["1st proff", "2nd proff", "3rd proff"] as const).map((proff, index) => (
+                  <button key={proff} className={`proff-card ${proff === "2nd proff" ? "featured" : ""}`} onClick={() => selectProff(proff)}>
+                    <span className="proff-card-number">0{index + 1} / PROFF</span>
+                    <h2>{proff}</h2>
+                    <p>{proff === "2nd proff" ? "Your existing notes, organized and ready to explore." : "A dedicated space for what comes next."}</p>
+                    <span className="proff-card-arrow" aria-hidden="true">↗</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+        {!showHome && !showProffSelection && selectedProff !== "2nd proff" && (
+          <section className="proff-empty-page" aria-labelledby="proff-empty-title">
+            <div className="proff-empty-inner">
+              <button className="proff-back" onClick={openProffSelection}>← Back to proff selection</button>
+              <div className="proff-eyebrow">{selectedProff}</div>
+              <div className="proff-empty-card">
+                <h2 id="proff-empty-title">{selectedProff} notes are coming soon.</h2>
+                <p>Your next set of concepts will live here, organized to make every study session feel a little clearer.</p>
+                <button className="proff-empty-action" onClick={openProffSelection}>Choose another proff</button>
               </div>
             </div>
           </section>
@@ -1056,6 +1130,9 @@ export default function App(): React.ReactElement {
               onClick={() => setSidebarOpen((o) => !o)}
             >
               ☰
+            </button>
+            <button className="proff-home-btn" onClick={openProffSelection} title="Back to proff selection">
+              ← Proff selection
             </button>
             <span className="topbar-title">{activeCategory}</span>
             <div className="search-wrap">
