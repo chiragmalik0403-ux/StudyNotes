@@ -250,6 +250,25 @@ const saveSettings = (s: Settings): void => {
   }
 };
 
+const loadStoredStringArray = (key: string, fallback: string[] = []): string[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : fallback;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const loadStoredCategories = (): Record<string, string[]> => {
+  try {
+    const raw = localStorage.getItem(`${APP_KEY}_categories`);
+    return raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+  } catch {
+    return {};
+  }
+};
+
 const buildIframeHTML = (jsxSource: string): string => {
   const safeSource = JSON.stringify(jsxSource);
   return `<!DOCTYPE html>
@@ -351,6 +370,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .proff-card p { color: #71837d; font-size: 12px; line-height: 1.5; }
 .proff-card.featured p { color: #c2d2ca; }
 .proff-card-arrow { position: absolute; right: 23px; bottom: 23px; color: #b56b35; font-size: 22px; }
+.proff-secondary-action { margin-top: 24px; border: 1px solid rgba(24,59,54,.22); border-radius: 99px; padding: 10px 15px; background: transparent; color: #49615b; font: 700 12px var(--font); cursor: pointer; }
+.proff-secondary-action:hover { border-color: #b56b35; color: #b56b35; }
 .proff-empty-inner { max-width: 820px; }
 .proff-empty-card { margin-top: 52px; padding: 46px; border: 1px solid rgba(24,59,54,.14); border-radius: 22px; background: rgba(255,255,255,.72); text-align: center; box-shadow: 0 20px 45px rgba(24,59,54,.08); }
 .proff-empty-card h2 { margin-bottom: 10px; font-family: var(--serif); font-size: 34px; }
@@ -358,6 +379,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .proff-empty-action { margin-top: 26px; border: 0; border-radius: 99px; padding: 13px 20px; background: #b56b35; color: #fff; font: 800 12px var(--font); cursor: pointer; }
 .proff-home-btn { border: 0; background: transparent; color: var(--text3); font: 700 12px var(--font); cursor: pointer; white-space: nowrap; }
 .proff-home-btn:hover { color: var(--accent); }
+.sidebar-add-category { margin: 7px 14px 0; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; background: transparent; color: var(--accent); font: 600 11px var(--font); cursor: pointer; text-align: left; }
+.sidebar-add-category:hover { border-color: var(--accent); background: var(--accentBg); }
 .home-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #182b28; }
 .home-page::before { content: ""; position: absolute; width: 52vw; height: 52vw; max-width: 720px; max-height: 720px; right: -15vw; top: -22vw; border-radius: 50%; background: #dce8d5; opacity: .75; }
 .home-page::after { content: ""; position: absolute; width: 280px; height: 280px; left: -150px; bottom: 10%; border-radius: 50%; background: #ead7b8; opacity: .55; }
@@ -666,7 +689,23 @@ export default function App(): React.ReactElement {
   const [toast, setToast] = useState<string | null>(null);
   const [showHome, setShowHome] = useState<boolean>(true);
   const [showProffSelection, setShowProffSelection] = useState<boolean>(false);
-  const [selectedProff, setSelectedProff] = useState<"1st proff" | "2nd proff" | "3rd proff" | null>(null);
+  const [selectedProff, setSelectedProff] = useState<string | null>(null);
+  const [customProffs, setCustomProffs] = useState<string[]>(() =>
+    loadStoredStringArray(`${APP_KEY}_proffs`)
+  );
+  const [customCategories, setCustomCategories] = useState<Record<string, string[]>>(() =>
+    loadStoredCategories()
+  );
+
+  const proffCategories = useMemo(
+    () => ["1st proff", "2nd proff", "3rd proff", ...customProffs],
+    [customProffs]
+  );
+
+  useEffect(() => {
+    localStorage.setItem(`${APP_KEY}_proffs`, JSON.stringify(customProffs));
+    localStorage.setItem(`${APP_KEY}_categories`, JSON.stringify(customCategories));
+  }, [customProffs, customCategories]);
 
   const openProffSelection = (): void => {
     setShowHome(false);
@@ -674,11 +713,33 @@ export default function App(): React.ReactElement {
     setSelectedProff(null);
   };
 
-  const selectProff = (proff: "1st proff" | "2nd proff" | "3rd proff"): void => {
+  const selectProff = (proff: string): void => {
     setShowProffSelection(false);
     setSelectedProff(proff);
     setActiveCategory("All Notes");
     setSidebarOpen(false);
+  };
+
+  const addParentCategory = (): void => {
+    if (!canCreate) return;
+    const name = window.prompt("Name this parent category");
+    const normalized = name?.trim();
+    if (!normalized || proffCategories.some((p) => p.toLowerCase() === normalized.toLowerCase())) return;
+    setCustomProffs((items) => [...items, normalized]);
+    showToast("Parent category added");
+  };
+
+  const addSubCategory = (): void => {
+    if (!canCreate || selectedProff !== "2nd proff") return;
+    const name = window.prompt("Name this subcategory");
+    const normalized = name?.trim();
+    if (!normalized || allCategories.some((c) => c.toLowerCase() === normalized.toLowerCase())) return;
+    setCustomCategories((items) => ({
+      ...items,
+      "2nd proff": [...(items["2nd proff"] ?? []), normalized],
+    }));
+    setActiveCategory(normalized);
+    showToast("Subcategory added");
   };
 
   const [showSignIn, setShowSignIn] = useState<boolean>(false);
@@ -735,6 +796,7 @@ export default function App(): React.ReactElement {
 
   const allCategories: string[] = [
     "All Notes",
+    ...(customCategories["2nd proff"] ?? []),
     ...Array.from(
       new Set([
         ...DEFAULT_CATEGORIES.filter((c) => c !== "All Notes"),
@@ -1030,15 +1092,18 @@ export default function App(): React.ReactElement {
               <h1 className="proff-title" id="proff-title">Choose your proff.</h1>
               <p className="proff-intro">A calmer way to move through BAMS — start with the year you’re studying today.</p>
               <div className="proff-grid">
-                {(["1st proff", "2nd proff", "3rd proff"] as const).map((proff, index) => (
+                {proffCategories.map((proff, index) => (
                   <button key={proff} className={`proff-card ${proff === "2nd proff" ? "featured" : ""}`} onClick={() => selectProff(proff)}>
-                    <span className="proff-card-number">0{index + 1} / PROFF</span>
+                    <span className="proff-card-number">{String(index + 1).padStart(2, "0")} / PROFF</span>
                     <h2>{proff}</h2>
-                    <p>{proff === "2nd proff" ? "Your existing notes, organized and ready to explore." : "A dedicated space for what comes next."}</p>
+                    <p>{proff === "2nd proff" ? "Your existing notes, organized and ready to explore." : customCategories[proff]?.length ? `${customCategories[proff].length} subcategories ready to explore.` : "A dedicated space for what comes next."}</p>
                     <span className="proff-card-arrow" aria-hidden="true">↗</span>
                   </button>
                 ))}
               </div>
+              {canCreate && (
+                <button className="proff-secondary-action" onClick={addParentCategory}>+ Add parent category</button>
+              )}
             </div>
           </section>
         )}
@@ -1086,6 +1151,11 @@ export default function App(): React.ReactElement {
               <span className="badge">{catCount(cat)}</span>
             </button>
           ))}
+          {canCreate && (
+            <button className="sidebar-add-category" onClick={addSubCategory}>
+              + Add subcategory
+            </button>
+          )}
 
           <div className="sidebar-bottom">
             <button className="btn btn-ghost btn-sm btn-full" onClick={exportJSON}>
