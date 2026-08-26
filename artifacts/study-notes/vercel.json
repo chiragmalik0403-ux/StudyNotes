@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://studynotes-86zi.onrender.com/api/:path*"
+    }
+  ]
+}
