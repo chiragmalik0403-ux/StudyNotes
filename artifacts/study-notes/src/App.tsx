@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useUser, UserButton } from "@clerk/react";
+import { useUser, SignIn, SignUp, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./lib/supabase";
 import {
@@ -250,25 +250,6 @@ const saveSettings = (s: Settings): void => {
   }
 };
 
-const loadStoredStringArray = (key: string, fallback: string[] = []): string[] => {
-  try {
-    const raw = localStorage.getItem(key);
-    const parsed = raw ? JSON.parse(raw) : fallback;
-    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const loadStoredCategories = (): Record<string, string[]> => {
-  try {
-    const raw = localStorage.getItem(`${APP_KEY}_categories`);
-    return raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-  } catch {
-    return {};
-  }
-};
-
 const buildIframeHTML = (jsxSource: string): string => {
   const safeSource = JSON.stringify(jsxSource);
   return `<!DOCTYPE html>
@@ -349,84 +330,6 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
-.app-shell.home-mode { display: block; overflow: auto; background: #f7f4ee; }
-.app-shell.home-mode .sidebar, .app-shell.home-mode .main-panel { display: none; }
-.app-shell.proff-select-mode .sidebar, .app-shell.proff-select-mode .main-panel,
-.app-shell.proff-empty-mode .sidebar, .app-shell.proff-empty-mode .main-panel { display: none; }
-.proff-selection-page, .proff-empty-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #183b36; }
-.proff-selection-page::before, .proff-empty-page::before { content: ""; position: absolute; width: 560px; height: 560px; right: -180px; top: -240px; border-radius: 50%; background: #dce8d5; }
-.proff-selection-inner, .proff-empty-inner { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 60px 44px 80px; }
-.proff-back { border: 0; background: transparent; color: #60766e; font: 700 12px var(--font); cursor: pointer; padding: 8px 0; }
-.proff-back:hover { color: #b56b35; }
-.proff-eyebrow { margin-top: 62px; color: #b56b35; font-size: 11px; font-weight: 800; letter-spacing: 2.2px; text-transform: uppercase; }
-.proff-title { max-width: 650px; margin: 15px 0 13px; color: #183b36; font-family: var(--serif); font-size: clamp(44px, 6vw, 74px); line-height: .98; letter-spacing: -3px; }
-.proff-intro { max-width: 510px; color: #60766e; font-family: var(--serif); font-size: 19px; font-style: italic; line-height: 1.45; }
-.proff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 46px; }
-.proff-card { position: relative; min-height: 210px; padding: 25px; border: 1px solid rgba(24,59,54,.14); border-radius: 18px; background: rgba(255,255,255,.68); color: #183b36; text-align: left; cursor: pointer; box-shadow: 0 12px 32px rgba(24,59,54,.06); transition: transform .2s, box-shadow .2s, border-color .2s; }
-.proff-card:hover { transform: translateY(-6px); border-color: #b56b35; box-shadow: 0 20px 42px rgba(24,59,54,.13); }
-.proff-card.featured { background: #183b36; color: #fff; border-color: #183b36; }
-.proff-card-number { color: #b56b35; font: 800 11px var(--font); letter-spacing: 1.5px; }
-.proff-card h2 { margin: 33px 0 8px; font-family: var(--serif); font-size: 28px; letter-spacing: -.8px; }
-.proff-card p { color: #71837d; font-size: 12px; line-height: 1.5; }
-.proff-card.featured p { color: #c2d2ca; }
-.proff-card-arrow { position: absolute; right: 23px; bottom: 23px; color: #b56b35; font-size: 22px; }
-.proff-secondary-action { margin-top: 24px; border: 1px solid rgba(24,59,54,.22); border-radius: 99px; padding: 10px 15px; background: transparent; color: #49615b; font: 700 12px var(--font); cursor: pointer; }
-.proff-secondary-action:hover { border-color: #b56b35; color: #b56b35; }
-.proff-empty-inner { max-width: 820px; }
-.proff-empty-card { margin-top: 52px; padding: 46px; border: 1px solid rgba(24,59,54,.14); border-radius: 22px; background: rgba(255,255,255,.72); text-align: center; box-shadow: 0 20px 45px rgba(24,59,54,.08); }
-.proff-empty-card h2 { margin-bottom: 10px; font-family: var(--serif); font-size: 34px; }
-.proff-empty-card p { max-width: 420px; margin: 0 auto; color: #60766e; font-family: var(--serif); font-size: 17px; font-style: italic; line-height: 1.5; }
-.proff-empty-action { margin-top: 26px; border: 0; border-radius: 99px; padding: 13px 20px; background: #b56b35; color: #fff; font: 800 12px var(--font); cursor: pointer; }
-.proff-home-btn { border: 0; background: transparent; color: var(--text3); font: 700 12px var(--font); cursor: pointer; white-space: nowrap; }
-.proff-home-btn:hover { color: var(--accent); }
-.sidebar-add-category { margin: 7px 14px 0; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; background: transparent; color: var(--accent); font: 600 11px var(--font); cursor: pointer; text-align: left; }
-.sidebar-add-category:hover { border-color: var(--accent); background: var(--accentBg); }
-.home-page { min-height: 100vh; position: relative; overflow: hidden; background: #f7f4ee; color: #182b28; }
-.home-page::before { content: ""; position: absolute; width: 52vw; height: 52vw; max-width: 720px; max-height: 720px; right: -15vw; top: -22vw; border-radius: 50%; background: #dce8d5; opacity: .75; }
-.home-page::after { content: ""; position: absolute; width: 280px; height: 280px; left: -150px; bottom: 10%; border-radius: 50%; background: #ead7b8; opacity: .55; }
-.home-nav { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; max-width: 1240px; margin: 0 auto; padding: 28px 44px; }
-.home-brand { border: 0; background: transparent; color: #183b36; font-family: var(--serif); font-size: 21px; font-weight: 700; letter-spacing: -.6px; cursor: pointer; }
-.home-brand span { color: #b56b35; }
-.home-nav-actions { display: flex; align-items: center; gap: 12px; }
-.home-nav-link { border: 0; background: transparent; color: #49615b; font: 600 12px var(--font); cursor: pointer; padding: 9px 12px; }
-.home-nav-link:hover { color: #b56b35; }
-.home-nav-cta { border: 1px solid #183b36; border-radius: 99px; padding: 10px 17px; background: #183b36; color: #fff; font: 700 12px var(--font); cursor: pointer; transition: transform .2s, background .2s; }
-.home-nav-cta:hover { transform: translateY(-2px); background: #b56b35; border-color: #b56b35; }
-.home-content { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(320px, .96fr); gap: 60px; align-items: center; max-width: 1240px; min-height: calc(100vh - 89px); margin: 0 auto; padding: 56px 44px 92px; }
-.home-kicker { display: flex; align-items: center; gap: 11px; color: #b56b35; font-size: 11px; font-weight: 800; letter-spacing: 2.3px; text-transform: uppercase; }
-.home-kicker::before { content: ""; width: 38px; height: 1px; background: #b56b35; }
-.home-title { max-width: 680px; margin: 22px 0 20px; color: #183b36; font-family: var(--serif); font-size: clamp(52px, 7vw, 96px); font-weight: 600; line-height: .94; letter-spacing: -4px; }
-.home-title em { color: #b56b35; font-style: normal; }
-.home-subtitle { max-width: 560px; color: #5d716b; font-family: var(--serif); font-size: clamp(18px, 2vw, 23px); font-style: italic; line-height: 1.45; }
-.home-actions { display: flex; align-items: center; gap: 20px; margin-top: 34px; }
-.home-primary { border: 0; border-radius: 99px; padding: 15px 23px; background: #b56b35; color: #fff; font: 800 13px var(--font); cursor: pointer; box-shadow: 0 12px 24px rgba(181,107,53,.22); transition: transform .2s, box-shadow .2s; }
-.home-primary:hover { transform: translateY(-3px); box-shadow: 0 16px 28px rgba(181,107,53,.3); }
-.home-secondary { border: 0; background: transparent; color: #49615b; font: 700 13px var(--font); cursor: pointer; }
-.home-secondary:hover { color: #b56b35; }
-.home-note { margin-top: 30px; color: #83928b; font-size: 11px; letter-spacing: .2px; }
-.home-visual { position: relative; min-height: 440px; }
-.home-orbit { position: absolute; inset: 8% 4% 5% 7%; border: 1px solid rgba(24,59,54,.15); border-radius: 47% 53% 50% 48%; transform: rotate(-13deg); }
-.home-orbit::after { content: ""; position: absolute; inset: 8% -4% 10% 12%; border: 1px solid rgba(181,107,53,.3); border-radius: 54% 46% 45% 55%; transform: rotate(28deg); }
-.home-card { position: absolute; right: 7%; top: 13%; width: min(390px, 82%); padding: 25px; border: 1px solid rgba(255,255,255,.75); border-radius: 22px; background: rgba(255,255,255,.74); box-shadow: 0 26px 70px rgba(24,59,54,.14); backdrop-filter: blur(14px); transform: rotate(4deg); }
-.home-card-top { display: flex; justify-content: space-between; align-items: center; color: #b56b35; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
-.home-card h2 { margin: 34px 0 10px; color: #183b36; font-family: var(--serif); font-size: 30px; line-height: 1; }
-.home-card p { color: #60766e; font-size: 12px; line-height: 1.6; }
-.home-card-rule { height: 1px; margin: 24px 0 18px; background: rgba(24,59,54,.13); }
-.home-card-bottom { display: flex; align-items: center; justify-content: space-between; color: #60766e; font-size: 11px; }
-.home-pill { padding: 7px 10px; border-radius: 99px; background: #e3eddd; color: #37614d; font-weight: 700; }
-.home-badge { position: absolute; left: 1%; bottom: 10%; display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 14px; background: #183b36; color: #fff; box-shadow: 0 18px 35px rgba(24,59,54,.22); transform: rotate(-7deg); }
-.home-badge-mark { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #d7a66c; color: #183b36; font-family: var(--serif); font-size: 17px; font-weight: 700; }
-.home-badge strong { display: block; font-size: 11px; }
-.home-badge span { display: block; margin-top: 2px; color: #b9cbc2; font-size: 10px; }
-@media (max-width: 768px) {
-  .home-nav { padding: 22px 22px; }
-  .home-nav-link { display: none; }
-  .home-content { display: block; min-height: auto; padding: 64px 22px 70px; }
-  .home-title { font-size: clamp(54px, 15vw, 76px); letter-spacing: -3px; }
-  .home-visual { min-height: 380px; margin-top: 24px; }
-  .home-card { right: 3%; width: 86%; }
-  .home-badge { left: 0; bottom: 7%; }
-}
 
 .sidebar {
   width: 224px; flex-shrink: 0; background: var(--surface);
@@ -520,6 +423,14 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .btn-icon.pinned { color: var(--pin); }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
+.signin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
+.signin-overlay-inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.signin-close { position: absolute; top: -14px; right: -14px; z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--text2); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); transition: background 0.15s, color 0.15s; }
+.signin-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.auth-toggle { font-size: 13px; color: var(--text2); text-align: center; }
+.auth-toggle-btn { background: none; border: none; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; font-family: var(--font); text-decoration: underline; }
+.auth-toggle-btn:hover { color: var(--accent2); }
+.signin-overlay .cl-footer, .signin-overlay .cl-footerPages, .signin-overlay .cl-footerAction { display: none !important; }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 28px 80px rgba(0,0,0,0.35); width: 100%; max-width: 660px; max-height: 92vh; display: flex; flex-direction: column; animation: slideUp 0.2s ease; }
@@ -679,70 +590,36 @@ export default function App(): React.ReactElement {
   const [sortBy, setSortBy] = useState<string>("newest");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [showHome, setShowHome] = useState<boolean>(true);
-  const [showProffSelection, setShowProffSelection] = useState<boolean>(false);
-  const [selectedProff, setSelectedProff] = useState<string | null>(null);
-  const [customProffs, setCustomProffs] = useState<string[]>(() =>
-    loadStoredStringArray(`${APP_KEY}_proffs`)
-  );
-  const [customCategories, setCustomCategories] = useState<Record<string, string[]>>(() =>
-    loadStoredCategories()
-  );
 
-  const proffCategories = useMemo(
-    () => ["1st proff", "2nd proff", "3rd proff", ...customProffs],
-    [customProffs]
-  );
-
-  useEffect(() => {
-    localStorage.setItem(`${APP_KEY}_proffs`, JSON.stringify(customProffs));
-    localStorage.setItem(`${APP_KEY}_categories`, JSON.stringify(customCategories));
-  }, [customProffs, customCategories]);
-
-  const openProffSelection = (): void => {
-    setShowHome(false);
-    setShowProffSelection(true);
-    setSelectedProff(null);
-  };
-
-  const selectProff = (proff: string): void => {
-    setShowProffSelection(false);
-    setSelectedProff(proff);
-    setActiveCategory("All Notes");
-    setSidebarOpen(false);
-  };
-
-  const addParentCategory = (): void => {
-    if (!canCreate) return;
-    const name = window.prompt("Name this parent category");
-    const normalized = name?.trim();
-    if (!normalized || proffCategories.some((p) => p.toLowerCase() === normalized.toLowerCase())) return;
-    setCustomProffs((items) => [...items, normalized]);
-    showToast("Parent category added");
-  };
-
-  const addSubCategory = (): void => {
-    if (!canCreate || selectedProff !== "2nd proff") return;
-    const name = window.prompt("Name this subcategory");
-    const normalized = name?.trim();
-    if (!normalized || allCategories.some((c) => c.toLowerCase() === normalized.toLowerCase())) return;
-    setCustomCategories((items) => ({
-      ...items,
-      "2nd proff": [...(items["2nd proff"] ?? []), normalized],
-    }));
-    setActiveCategory(normalized);
-    showToast("Subcategory added");
-  };
-
+  const [showSignIn, setShowSignIn] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [editModal, setEditModal] = useState<EditModalData | null>(null);
   const [viewModal, setViewModal] = useState<Note | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (isSignedIn) setShowSignIn(false);
+  }, [isSignedIn]);
+
   const openAuth = (mode: "sign-in" | "sign-up" = "sign-in"): void => {
-    const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-    window.location.assign(`${basePath}/${mode === "sign-up" ? "sign-up" : "sign-in"}`);
+    setAuthMode(mode);
+    setShowSignIn(true);
   };
+
+  useEffect(() => {
+    if (!showSignIn) return;
+    const handleHash = (): void => {
+      const h = window.location.hash;
+      if (h.includes("sign-up") || h.includes("register")) {
+        setAuthMode("sign-up");
+      } else if (h.includes("sign-in") || h.includes("login")) {
+        setAuthMode("sign-in");
+      }
+    };
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, [showSignIn]);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -768,7 +645,6 @@ export default function App(): React.ReactElement {
 
   const allCategories: string[] = [
     "All Notes",
-    ...(customCategories["2nd proff"] ?? []),
     ...Array.from(
       new Set([
         ...DEFAULT_CATEGORIES.filter((c) => c !== "All Notes"),
@@ -987,111 +863,7 @@ export default function App(): React.ReactElement {
     <>
       <style dangerouslySetInnerHTML={{ __html: buildStyles(settings.dark) }} />
 
-      <div className={`app-shell ${showHome ? "home-mode" : showProffSelection ? "proff-select-mode" : selectedProff !== "2nd proff" ? "proff-empty-mode" : ""}`}>
-        {showHome && (
-          <section className="home-page" aria-labelledby="home-title">
-            <nav className="home-nav" aria-label="Main navigation">
-              <button className="home-brand" onClick={() => setShowHome(true)}>
-                Study<span>Notes</span>
-              </button>
-              <div className="home-nav-actions">
-                  <button className="home-nav-link" onClick={openProffSelection}>
-                  Browse notes
-                </button>
-                {!isSignedIn && clerkLoaded && (
-                  <button className="home-nav-cta" onClick={() => openAuth("sign-in")}>
-                    Sign in
-                  </button>
-                )}
-              </div>
-            </nav>
-
-            <div className="home-content">
-              <div className="home-copy">
-                <div className="home-kicker">The BAMS study companion</div>
-                <h1 className="home-title" id="home-title">
-                  Your BAMS Syllabus, <em>Reimagined</em>
-                </h1>
-                <p className="home-subtitle">
-                  interactive, syllabus-aligned learning organized by Prof, designed to make BAMS easier to understand.
-                </p>
-                <div className="home-actions">
-                  <button className="home-primary" onClick={openProffSelection}>
-                    Explore the notes <span aria-hidden="true">→</span>
-                  </button>
-                  {!isSignedIn && clerkLoaded && (
-                    <button className="home-secondary" onClick={() => openAuth("sign-up")}>
-                      Create your free account
-                    </button>
-                  )}
-                </div>
-                <p className="home-note">Built for curious minds navigating Ayurveda, one concept at a time.</p>
-              </div>
-
-              <div className="home-visual" aria-hidden="true">
-                <div className="home-orbit" />
-                <div className="home-card">
-                  <div className="home-card-top">
-                    <span>II BAMS · Dravyaguna</span>
-                    <span>01 / 06</span>
-                  </div>
-                  <h2>Learn the why behind the what.</h2>
-                  <p>
-                    Structured concepts, memorable explanations, and interactive study guides that turn a long syllabus into a path you can follow.
-                  </p>
-                  <div className="home-card-rule" />
-                  <div className="home-card-bottom">
-                    <span>Today’s focus</span>
-                    <span className="home-pill">Interactive guide</span>
-                  </div>
-                </div>
-                <div className="home-badge">
-                  <div className="home-badge-mark">✦</div>
-                  <div>
-                    <strong>Study with intention</strong>
-                    <span>Clearer notes. Deeper recall.</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-        {showProffSelection && (
-          <section className="proff-selection-page" aria-labelledby="proff-title">
-            <div className="proff-selection-inner">
-              <button className="proff-back" onClick={() => setShowHome(true)}>← Back to home</button>
-              <div className="proff-eyebrow">Find your place in the syllabus</div>
-              <h1 className="proff-title" id="proff-title">Choose your proff.</h1>
-              <p className="proff-intro">A calmer way to move through BAMS — start with the year you’re studying today.</p>
-              <div className="proff-grid">
-                {proffCategories.map((proff, index) => (
-                  <button key={proff} className={`proff-card ${proff === "2nd proff" ? "featured" : ""}`} onClick={() => selectProff(proff)}>
-                    <span className="proff-card-number">{String(index + 1).padStart(2, "0")} / PROFF</span>
-                    <h2>{proff}</h2>
-                    <p>{proff === "2nd proff" ? "Your existing notes, organized and ready to explore." : customCategories[proff]?.length ? `${customCategories[proff].length} subcategories ready to explore.` : "A dedicated space for what comes next."}</p>
-                    <span className="proff-card-arrow" aria-hidden="true">↗</span>
-                  </button>
-                ))}
-              </div>
-              {canCreate && (
-                <button className="proff-secondary-action" onClick={addParentCategory}>+ Add parent category</button>
-              )}
-            </div>
-          </section>
-        )}
-        {!showHome && !showProffSelection && selectedProff !== "2nd proff" && (
-          <section className="proff-empty-page" aria-labelledby="proff-empty-title">
-            <div className="proff-empty-inner">
-              <button className="proff-back" onClick={openProffSelection}>← Back to proff selection</button>
-              <div className="proff-eyebrow">{selectedProff}</div>
-              <div className="proff-empty-card">
-                <h2 id="proff-empty-title">{selectedProff} notes are coming soon.</h2>
-                <p>Your next set of concepts will live here, organized to make every study session feel a little clearer.</p>
-                <button className="proff-empty-action" onClick={openProffSelection}>Choose another proff</button>
-              </div>
-            </div>
-          </section>
-        )}
+      <div className="app-shell">
         {sidebarOpen && (
           <div
             className="sidebar-backdrop"
@@ -1123,11 +895,6 @@ export default function App(): React.ReactElement {
               <span className="badge">{catCount(cat)}</span>
             </button>
           ))}
-          {canCreate && (
-            <button className="sidebar-add-category" onClick={addSubCategory}>
-              + Add subcategory
-            </button>
-          )}
 
           <div className="sidebar-bottom">
             <button className="btn btn-ghost btn-sm btn-full" onClick={exportJSON}>
@@ -1172,9 +939,6 @@ export default function App(): React.ReactElement {
               onClick={() => setSidebarOpen((o) => !o)}
             >
               ☰
-            </button>
-            <button className="proff-home-btn" onClick={openProffSelection} title="Back to proff selection">
-              ← Proff selection
             </button>
             <span className="topbar-title">{activeCategory}</span>
             <div className="search-wrap">
@@ -1355,6 +1119,48 @@ export default function App(): React.ReactElement {
           onClose={() => setShowAdminPanel(false)}
           showToast={showToast}
         />
+      )}
+
+      {showSignIn && (
+        <div className="signin-overlay">
+          <div className="signin-overlay-inner">
+            <button
+              className="signin-close"
+              onClick={() => setShowSignIn(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            {authMode === "sign-in" ? (
+              <SignIn
+                routing="hash"
+                forceRedirectUrl={window.location.origin + window.location.pathname}
+              />
+            ) : (
+              <SignUp
+                routing="hash"
+                forceRedirectUrl={window.location.origin + window.location.pathname}
+              />
+            )}
+            <div className="auth-toggle">
+              {authMode === "sign-in" ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <button className="auth-toggle-btn" onClick={() => setAuthMode("sign-up")}>
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button className="auth-toggle-btn" onClick={() => setAuthMode("sign-in")}>
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}

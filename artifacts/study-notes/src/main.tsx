@@ -1,9 +1,5 @@
 import { createRoot } from "react-dom/client";
-import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
-import { ClerkProvider, SignIn, SignUp } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { shadcn } from "@clerk/themes";
+import { ClerkProvider } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./index.css";
@@ -21,127 +17,15 @@ const queryClient = new QueryClient({
   },
 });
 
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const publishableKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
-);
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
+
+// In dev this env var is empty; Replit sets it automatically in production
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
-function clerkPath(to: string): string {
-  try {
-    const url = new URL(to, window.location.origin);
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return to;
-  }
-}
-
-function navigateFromClerk(to: string, replace = false): void {
-  const nextPath = clerkPath(to);
-  if (nextPath === `${window.location.pathname}${window.location.search}${window.location.hash}`) {
-    return;
-  }
-  if (replace) {
-    window.history.replaceState({}, "", nextPath);
-  } else {
-    window.history.pushState({}, "", nextPath);
-  }
-  window.dispatchEvent(new PopStateEvent("popstate"));
-}
-
-const clerkAppearance = {
-  theme: shadcn,
-  variables: {
-    colorPrimary: "#b56b35",
-    colorForeground: "#183b36",
-    colorMutedForeground: "#60766e",
-    colorBackground: "#f7f4ee",
-    colorInput: "#ffffff",
-    colorInputForeground: "#183b36",
-    colorNeutral: "#d9ded8",
-    fontFamily: "DM Sans, Segoe UI, sans-serif",
-    borderRadius: "0.75rem",
-  },
-  elements: {
-    socialButtonsBlockButton: {
-      backgroundColor: "#ffffff",
-      border: "1px solid #d9ded8",
-      color: "#183b36",
-    },
-    socialButtonsBlockButtonText: {
-      color: "#183b36",
-      fontWeight: "600",
-    },
-  },
-};
-
-function SignInPage(): ReactElement {
-  return (
-    <div className="auth-page">
-      <button
-        className="auth-back-button"
-        type="button"
-        onClick={() => window.location.assign(`${basePath}/`)}
-      >
-        ← Back to home
-      </button>
-      <SignIn
-        routing="path"
-        path={`${basePath}/sign-in`}
-        signUpUrl={`${basePath}/sign-up`}
-        forceRedirectUrl={`${window.location.origin}${basePath}/`}
-      />
-    </div>
-  );
-}
-
-function SignUpPage(): ReactElement {
-  return (
-    <div className="auth-page">
-      <button
-        className="auth-back-button"
-        type="button"
-        onClick={() => window.location.assign(`${basePath}/`)}
-      >
-        ← Back to home
-      </button>
-      <SignUp
-        routing="path"
-        path={`${basePath}/sign-up`}
-        signInUrl={`${basePath}/sign-in`}
-        forceRedirectUrl={`${window.location.origin}${basePath}/`}
-      />
-    </div>
-  );
-}
-
-function RoutedApp(): ReactElement {
-  const [pathname, setPathname] = useState<string>(() => window.location.pathname);
-
-  useEffect(() => {
-    const handlePopState = (): void => setPathname(window.location.pathname);
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  if (pathname.startsWith(`${basePath}/sign-in`)) return <SignInPage />;
-  if (pathname.startsWith(`${basePath}/sign-up`)) return <SignUpPage />;
-  return <App />;
-}
-
 createRoot(document.getElementById("root")!).render(
-  <ClerkProvider
-    publishableKey={publishableKey}
-    proxyUrl={clerkProxyUrl}
-    appearance={clerkAppearance}
-    signInUrl={`${basePath}/sign-in`}
-    signUpUrl={`${basePath}/sign-up`}
-    routerPush={(to) => navigateFromClerk(to)}
-    routerReplace={(to) => navigateFromClerk(to, true)}
-  >
+  <ClerkProvider publishableKey={publishableKey} proxyUrl={clerkProxyUrl}>
     <QueryClientProvider client={queryClient}>
-      <RoutedApp />
+      <App />
     </QueryClientProvider>
   </ClerkProvider>
 );
