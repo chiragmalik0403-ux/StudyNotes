@@ -28,6 +28,28 @@ const publishableKey = publishableKeyFromHost(
 );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
+function clerkPath(to: string): string {
+  try {
+    const url = new URL(to, window.location.origin);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return to;
+  }
+}
+
+function navigateFromClerk(to: string, replace = false): void {
+  const nextPath = clerkPath(to);
+  if (nextPath === `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    return;
+  }
+  if (replace) {
+    window.history.replaceState({}, "", nextPath);
+  } else {
+    window.history.pushState({}, "", nextPath);
+  }
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 const clerkAppearance = {
   theme: shadcn,
   variables: {
@@ -115,6 +137,8 @@ createRoot(document.getElementById("root")!).render(
     appearance={clerkAppearance}
     signInUrl={`${basePath}/sign-in`}
     signUpUrl={`${basePath}/sign-up`}
+    routerPush={(to) => navigateFromClerk(to)}
+    routerReplace={(to) => navigateFromClerk(to, true)}
   >
     <QueryClientProvider client={queryClient}>
       <RoutedApp />
