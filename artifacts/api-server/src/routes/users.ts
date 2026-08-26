@@ -4,16 +4,24 @@ import { supabase, type DbUserRole } from "../lib/supabase";
 
 const router = Router();
 
+type AppRole = "admin" | "editor" | "viewer";
+
+function normalizeRole(role: string | null | undefined): AppRole {
+  if (role === "admin") return "admin";
+  if (role === "editor" || role === "contributor") return "editor";
+  return "viewer";
+}
+
 export async function getUserRole(
   clerkUserId: string
-): Promise<"admin" | "editor" | "viewer"> {
+): Promise<AppRole> {
   const { data: row } = await supabase
     .from("user_roles")
     .select("role")
     .eq("clerk_user_id", clerkUserId)
     .single();
 
-  return ((row as DbUserRole | null)?.role as "admin" | "editor" | "viewer") ?? "viewer";
+  return normalizeRole((row as DbUserRole | null)?.role);
 }
 
 async function syncProfileFields(
@@ -40,10 +48,69 @@ router.get("/users/me", async (req, res): Promise<void> => {
       return;
     }
 
+    const clerkUser = await clerkClient.users.getUser(auth.userId);
+    const primaryEmail = clerkUser.emailAddresses.find(
+      (address) => address.id === clerkUser.primaryEmailAddressId
+    ) ?? clerkUser.emailAddresses[0];
+    const email = primaryEmail?.emailAddress ?? "";
+    const emailIsVerified = primaryEmail?.verification?.status === "verified";
+    const name = clerkUser.fullName ?? null;
+    const imageUrl = clerkUser.imageUrl ?? null;
+
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from("user_roles")
+      .select("*")
+      .eq("clerk_user_id", auth.userId)
+      .maybeSingle();
+
+    if (currentRowError) {
+      req.log.error(currentRowError, "Failed to look up current user role");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    let role = normalizeRole((currentRow as DbUserRole | null)?.role);
+
+    // A recreated Clerk account can have a new user ID. Preserve an existing
+    // elevated role when the verified primary email matches exactly.
+    if (emailIsVerified && email && role === "viewer") {
+      const { data: emailMatches, error: emailLookupError } = await supabase
+        .from("user_roles")
+        .select("clerk_user_id, role, email")
+        .ilike("email", email)
+        .limit(2);
+
+      if (emailLookupError) {
+        req.log.warn(emailLookupError, "Could not look up an existing role by email");
+      } else {
+        const elevatedMatches = (emailMatches ?? []).filter(
+          (match) => normalizeRole(match.role) !== "viewer"
+        );
+        if (elevatedMatches.length === 1) {
+          role = normalizeRole(elevatedMatches[0].role);
+          const { error: roleRepairError } = await supabase
+            .from("user_roles")
+            .upsert(
+              { clerk_user_id: auth.userId, role },
+              { onConflict: "clerk_user_id" }
+            );
+          if (roleRepairError) {
+            req.log.error(roleRepairError, "Failed to restore existing user role");
+            res.status(500).json({ error: "Internal server error" });
+            return;
+          }
+          req.log.info(
+            { clerkUserId: auth.userId, role },
+            "Restored role for a verified existing email"
+          );
+        }
+      }
+    }
+
     const { error: upsertError } = await supabase
       .from("user_roles")
       .upsert(
-        { clerk_user_id: auth.userId, role: "viewer" },
+        { clerk_user_id: auth.userId, role },
         { onConflict: "clerk_user_id", ignoreDuplicates: true }
       );
 
@@ -52,19 +119,6 @@ router.get("/users/me", async (req, res): Promise<void> => {
       res.status(500).json({ error: "Internal server error" });
       return;
     }
-
-    const { data: row } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("clerk_user_id", auth.userId)
-      .single();
-
-    const role = ((row as DbUserRole | null)?.role as "admin" | "editor" | "viewer") ?? "viewer";
-
-    const clerkUser = await clerkClient.users.getUser(auth.userId);
-    const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
-    const name = clerkUser.fullName ?? null;
-    const imageUrl = clerkUser.imageUrl ?? null;
 
     await syncProfileFields(auth.userId, email, name, imageUrl, req.log);
 
@@ -105,7 +159,7 @@ router.get("/users", async (req, res): Promise<void> => {
       email: row.email ?? "",
       name: row.name ?? null,
       imageUrl: row.image_url ?? null,
-      role: row.role as "admin" | "editor" | "viewer",
+      role: normalizeRole(row.role),
     }));
 
     res.json(users);
@@ -157,7 +211,7 @@ router.patch("/users/:clerkUserId/role", async (req, res): Promise<void> => {
 
     await syncProfileFields(clerkUserId, email, name, imageUrl, req.log);
 
-    res.json({ clerkUserId, email, name, imageUrl, role });
+    res.json({ clerkUserId, email, name, imageUrl, role: normalizeRole(role) });
   } catch (err) {
     req.log.error(err, "Failed to update user role");
     res.status(500).json({ error: "Internal server error" });
