@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useUser, SignIn, SignUp, UserButton } from "@clerk/react";
+import { useUser, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./lib/supabase";
 import {
@@ -520,14 +520,6 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); fon
 .btn-icon.pinned { color: var(--pin); }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
-.signin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 12px; animation: fadeIn 0.15s ease; }
-.signin-overlay-inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.signin-close { position: absolute; top: -14px; right: -14px; z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--text2); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); transition: background 0.15s, color 0.15s; }
-.signin-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
-.auth-toggle { font-size: 13px; color: var(--text2); text-align: center; }
-.auth-toggle-btn { background: none; border: none; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; font-family: var(--font); text-decoration: underline; }
-.auth-toggle-btn:hover { color: var(--accent2); }
-.signin-overlay .cl-footer, .signin-overlay .cl-footerPages, .signin-overlay .cl-footerAction { display: none !important; }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 28px 80px rgba(0,0,0,0.35); width: 100%; max-width: 660px; max-height: 92vh; display: flex; flex-direction: column; animation: slideUp 0.2s ease; }
@@ -742,35 +734,15 @@ export default function App(): React.ReactElement {
     showToast("Subcategory added");
   };
 
-  const [showSignIn, setShowSignIn] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [editModal, setEditModal] = useState<EditModalData | null>(null);
   const [viewModal, setViewModal] = useState<Note | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (isSignedIn) setShowSignIn(false);
-  }, [isSignedIn]);
-
   const openAuth = (mode: "sign-in" | "sign-up" = "sign-in"): void => {
     const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
     window.location.assign(`${basePath}/${mode === "sign-up" ? "sign-up" : "sign-in"}`);
   };
-
-  useEffect(() => {
-    if (!showSignIn) return;
-    const handleHash = (): void => {
-      const h = window.location.hash;
-      if (h.includes("sign-up") || h.includes("register")) {
-        setAuthMode("sign-up");
-      } else if (h.includes("sign-in") || h.includes("login")) {
-        setAuthMode("sign-in");
-      }
-    };
-    window.addEventListener("hashchange", handleHash);
-    return () => window.removeEventListener("hashchange", handleHash);
-  }, [showSignIn]);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1383,48 +1355,6 @@ export default function App(): React.ReactElement {
           onClose={() => setShowAdminPanel(false)}
           showToast={showToast}
         />
-      )}
-
-      {showSignIn && (
-        <div className="signin-overlay">
-          <div className="signin-overlay-inner">
-            <button
-              className="signin-close"
-              onClick={() => setShowSignIn(false)}
-              aria-label="Close"
-            >
-              ×
-            </button>
-            {authMode === "sign-in" ? (
-              <SignIn
-                routing="hash"
-                forceRedirectUrl={window.location.origin + window.location.pathname}
-              />
-            ) : (
-              <SignUp
-                routing="hash"
-                forceRedirectUrl={window.location.origin + window.location.pathname}
-              />
-            )}
-            <div className="auth-toggle">
-              {authMode === "sign-in" ? (
-                <>
-                  Don&apos;t have an account?{" "}
-                  <button className="auth-toggle-btn" onClick={() => setAuthMode("sign-up")}>
-                    Sign up
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <button className="auth-toggle-btn" onClick={() => setAuthMode("sign-in")}>
-                    Sign in
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}

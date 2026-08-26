@@ -12,8 +12,42 @@ html, body, #root {
 .auth-page {
   min-height: 100dvh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   padding: 24px 16px;
   background: #f7f4ee;
+}
+
+.auth-back-button {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  color: #183b36;
+  font: 600 14px/1.2 "DM Sans", "Segoe UI", sans-serif;
+  cursor: pointer;
+  padding: 8px 12px;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.auth-back-button:hover {
+  color: #b56b35;
+  transform: translateX(-2px);
+}
+
+.auth-page .cl-socialButtonsBlockButton {
+  background: #ffffff !important;
+  border: 1px solid #d9ded8 !important;
+  color: #183b36 !important;
+}
+
+.auth-page .cl-socialButtonsBlockButton:hover {
+  background: #f3f6f1 !important;
+  border-color: #b56b35 !important;
+}
+
+.auth-page .cl-socialButtonsBlockButtonText {
+  color: #183b36 !important;
+  font-weight: 600 !important;
 }

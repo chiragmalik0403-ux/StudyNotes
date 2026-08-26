@@ -46,6 +46,13 @@ const clerkAppearance = {
 function SignInPage(): ReactElement {
   return (
     <div className="auth-page">
+      <button
+        className="auth-back-button"
+        type="button"
+        onClick={() => window.location.assign(`${basePath}/`)}
+      >
+        ← Back to home
+      </button>
       <SignIn
         routing="path"
         path={`${basePath}/sign-in`}
@@ -59,6 +66,13 @@ function SignInPage(): ReactElement {
 function SignUpPage(): ReactElement {
   return (
     <div className="auth-page">
+      <button
+        className="auth-back-button"
+        type="button"
+        onClick={() => window.location.assign(`${basePath}/`)}
+      >
+        ← Back to home
+      </button>
       <SignUp
         routing="path"
         path={`${basePath}/sign-up`}
