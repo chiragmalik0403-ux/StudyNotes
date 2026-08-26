@@ -41,6 +41,17 @@ const clerkAppearance = {
     fontFamily: "DM Sans, Segoe UI, sans-serif",
     borderRadius: "0.75rem",
   },
+  elements: {
+    socialButtonsBlockButton: {
+      backgroundColor: "#ffffff",
+      border: "1px solid #d9ded8",
+      color: "#183b36",
+    },
+    socialButtonsBlockButtonText: {
+      color: "#183b36",
+      fontWeight: "600",
+    },
+  },
 };
 
 function SignInPage(): ReactElement {

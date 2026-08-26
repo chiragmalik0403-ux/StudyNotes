@@ -35,19 +35,3 @@ html, body, #root {
   color: #b56b35;
   transform: translateX(-2px);
 }
-
-.auth-page .cl-socialButtonsBlockButton {
-  background: #ffffff !important;
-  border: 1px solid #d9ded8 !important;
-  color: #183b36 !important;
-}
-
-.auth-page .cl-socialButtonsBlockButton:hover {
-  background: #f3f6f1 !important;
-  border-color: #b56b35 !important;
-}
-
-.auth-page .cl-socialButtonsBlockButtonText {
-  color: #183b36 !important;
-  font-weight: 600 !important;
-}
